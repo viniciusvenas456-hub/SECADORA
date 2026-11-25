@@ -1,0 +1,295 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Preferences.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_BME280.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// --- CONFIGURAÇÃO DE PINOS (ESP32-C3 OLED) ---
+#define I2C_SDA 5
+#define I2C_SCL 6
+#define ONE_WIRE_BUS 4
+#define PIN_HEATER 2
+#define PIN_FAN 3
+
+// --- OBJETOS DE HARDWARE ---
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+Adafruit_BME280 bme;
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature ds18b20(&oneWire);
+WebServer server(80);
+Preferences prefs;
+
+// --- VARIÁVEIS DE CONTROLE E RAMPAS ---
+struct PerfilSecagem {
+  String nome;
+  float tempAlvo;      // °C
+  int tempoRampaMin;   // Tempo de subida gradual (evita choque térmico)
+  int tempoPatamarMin; // Tempo mantendo a temperatura
+  int tempoCoolMin;    // Tempo ventilando sem aquecer ao final
+};
+
+PerfilSecagem perfis[] = {
+  {"Parado", 0.0, 0, 0, 0},
+  {"PLA",    50.0, 15, 240, 15}, // 50°C | 15m rampa + 4h secagem + 15m resfriamento
+  {"PETG",   65.0, 20, 360, 20}, // 65°C | 20m rampa + 6h secagem + 20m resfriamento
+  {"ASA",    80.0, 25, 360, 25}, // 80°C | 25m rampa + 6h secagem + 25m resfriamento
+  {"ABS",    80.0, 25, 360, 25}  // 80°C | 25m rampa + 6h secagem + 25m resfriamento
+};
+
+int perfilAtual = 0;
+unsigned long inicioCicloMs = 0;
+float tempInicialCiclo = 25.0;
+float setpointAtual = 0.0;
+String faseAtual = "Aguardando";
+
+float t1 = 0, t2 = 0, tAmb = 0, umid = 0;
+int pwmHeater = 0, pwmFan = 0;
+
+// --- PÁGINA WEB EMBARCADA NO ESP32-C3 (PAINEL DE CONTROLE REAL) ---
+const char INDEX_HTML[] PROGMEM = R"rawliteral(
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Filament Care C3 | Controle</title>
+<style>
+:root{--bg:#0b1220;--p:#132034;--p2:#1b2b43;--t:#edf4fc;--m:#a7b7cc;--a:#59d6a4;--w:#f59e0b;--d:#ef4444;--line:#2b3d55}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,sans-serif;padding:20px}
+.wrap{max-width:900px;margin:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:18px}
+.val{font-size:32px;font-weight:800;margin:6px 0;color:var(--a)}.muted{color:var(--m);font-size:13px}
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+button{padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--p2);color:var(--t);font-weight:700;cursor:pointer;font-size:15px}
+button:hover{border-color:var(--a)}button.stop{background:#3b161c;border-color:var(--d);color:#fca5a5}
+.bar{height:10px;background:#0b1525;border-radius:99px;overflow:hidden;margin-top:10px}.fill{height:100%;background:var(--a);width:0%;transition:.4s}
+</style></head><body><div class="wrap">
+<h2>Filament Care C3 <span class="muted" id="ip"></span></h2>
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div><span class="muted">STATUS DO CICLO</span><h3 style="margin:4px 0" id="fase">Carregando...</h3></div>
+    <div style="text-align:right"><span class="muted">ALVO ATUAL (RAMPA)</span><h3 style="margin:4px 0;color:var(--w)" id="sp">-- °C</h3></div>
+  </div>
+  <div class="bar"><div class="fill" id="prog"></div></div>
+  <div class="muted" style="margin-top:8px" id="tempo">Tempo decorrido: 0 min</div>
+</div>
+<div class="grid">
+  <div class="card"><div class="muted">CÂMARA (DS18B20 #1)</div><div class="val" id="t1">-- °C</div></div>
+  <div class="card"><div class="muted">AQUECEDOR (DS18B20 #2)</div><div class="val" id="t2">-- °C</div></div>
+  <div class="card"><div class="muted">UMIDADE (BME280)</div><div class="val" id="hum">-- %</div></div>
+  <div class="card"><div class="muted">POTÊNCIA / FAN</div><div class="val" id="pwr">--% / --%</div></div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">Iniciar Rampa de Secagem</h3>
+  <p class="muted">Cada perfil executa: <b>1. Rampa gradual</b> (evita empenamento) → <b>2. Patamar estável</b> → <b>3. Resfriamento ventilado</b>.</p>
+  <div class="btns">
+    <button onclick="setP(1)">PLA<br><span class="muted">50°C · 4h30</span></button>
+    <button onclick="setP(2)">PETG<br><span class="muted">65°C · 6h40</span></button>
+    <button onclick="setP(3)">ASA<br><span class="muted">80°C · 6h50</span></button>
+    <button onclick="setP(4)">ABS<br><span class="muted">80°C · 6h50</span></button>
+    <button class="stop" onclick="setP(0)">PARAR<br><span class="muted">Desligar</span></button>
+  </div>
+</div></div>
+<script>
+function setP(id){fetch('/set?p='+id).then(()=>atualizar())}
+function atualizar(){
+  fetch('/status').then(r=>r.json()).then(d=>{
+    document.getElementById('t1').innerText=d.t1.toFixed(1)+' °C';
+    document.getElementById('t2').innerText=d.t2.toFixed(1)+' °C';
+    document.getElementById('hum').innerText=d.hum.toFixed(1)+' %';
+    document.getElementById('fase').innerText=d.perfil+' — '+d.fase;
+    document.getElementById('sp').innerText=d.sp.toFixed(1)+' °C';
+    document.getElementById('pwr').innerText=Math.round(d.heater/2.55)+'% / '+Math.round(d.fan/2.55)+'%';
+    document.getElementById('tempo').innerText='Decorrido: '+d.minDecorridos+' min / Total: '+d.minTotal+' min';
+    let pct=d.minTotal>0?Math.min(100,(d.minDecorridos/d.minTotal)*100):0;
+    document.getElementById('prog').style.width=pct+'%';
+  });
+}
+setInterval(atualizar,2000);atualizar();
+</script></body></html>
+)rawliteral";
+
+void lerSensores() {
+  ds18b20.requestTemperatures();
+  float r1 = ds18b20.getTempCByIndex(0);
+  float r2 = ds18b20.getTempCByIndex(1);
+  if (r1 > -50 && r1 < 150) t1 = r1;
+  if (r2 > -50 && r2 < 150) t2 = r2;
+  tAmb = bme.readTemperature();
+  umid = bme.readHumidity();
+}
+
+void processarRampaEControle() {
+  if (perfilAtual == 0) {
+    setpointAtual = 0;
+    faseAtual = "Parado";
+    pwmHeater = 0;
+    // Mantém fan rodando se a câmara ainda estiver quente (> 38°C)
+    pwmFan = (t1 > 38.0) ? 160 : 0;
+    analogWrite(PIN_HEATER, pwmHeater);
+    analogWrite(PIN_FAN, pwmFan);
+    return;
+  }
+
+  PerfilSecagem p = perfis[perfilAtual];
+  unsigned long decorridoMin = (millis() - inicioCicloMs) / 60000UL;
+  int totalMin = p.tempoRampaMin + p.tempoPatamarMin + p.tempoCoolMin;
+
+  if (decorridoMin < p.tempoRampaMin) {
+    // FASE 1: RAMPA DE SUBIDA LINEAR
+    faseAtual = "1. Rampa de Aquecimento";
+    float progresso = (float)decorridoMin / (float)p.tempoRampaMin;
+    setpointAtual = tempInicialCiclo + (p.tempAlvo - tempInicialCiclo) * progresso;
+    pwmFan = 200;
+  } else if (decorridoMin < (p.tempoRampaMin + p.tempoPatamarMin)) {
+    // FASE 2: PATAMAR DE SECAGEM
+    faseAtual = "2. Patamar de Secagem";
+    setpointAtual = p.tempAlvo;
+    pwmFan = 255;
+  } else if (decorridoMin < totalMin) {
+    // FASE 3: RESFRIAMENTO CONTROLADO
+    faseAtual = "3. Resfriamento";
+    setpointAtual = 0;
+    pwmHeater = 0;
+    pwmFan = 255;
+    analogWrite(PIN_HEATER, 0);
+    analogWrite(PIN_FAN, pwmFan);
+    return;
+  } else {
+    // CICLO CONCLUÍDO
+    perfilAtual = 0;
+    return;
+  }
+
+  // Proteção térmica de segurança (corta se o aquecedor passar de 105°C)
+  if (t2 > 105.0 || t1 > 92.0) {
+    pwmHeater = 0;
+    pwmFan = 255;
+  } else {
+    // Controle Proporcional suave
+    float erro = setpointAtual - t1;
+    if (erro <= 0) {
+      pwmHeater = 0;
+    } else {
+      pwmHeater = constrain((int)(erro * 45.0), 40, 255);
+    }
+  }
+
+  analogWrite(PIN_HEATER, pwmHeater);
+  analogWrite(PIN_FAN, pwmFan);
+}
+
+void verificarComandosSerial() {
+  // Permite que o site envie o Wi-Fi via WebSerial no formato: WIFI:SSID|SENHA
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd.startsWith("WIFI:")) {
+      int sep = cmd.indexOf('|');
+      if (sep > 5) {
+        String ssid = cmd.substring(5, sep);
+        String pass = cmd.substring(sep + 1);
+        prefs.begin("wifi", false);
+        prefs.putString("ssid", ssid);
+        prefs.putString("pass", pass);
+        prefs.end();
+        Serial.println("WIFI_SALVO_REINICIANDO");
+        delay(500);
+        ESP.restart();
+      }
+    }
+  }
+}
+
+void atualizarOLED() {
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  if (WiFi.status() == WL_CONNECTED) {
+    display.print("IP: ");
+    display.println(WiFi.localIP());
+  } else {
+    display.println("Wi-Fi: Desconectado");
+  }
+  display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
+  display.setCursor(0, 14);
+  display.printf("Cam: %.1fC  Alvo: %.0fC\n", t1, setpointAtual);
+  display.printf("PTC: %.1fC  Umid: %.0f%%\n", t2, umid);
+  display.setCursor(0, 38);
+  display.println(perfis[perfilAtual].nome + " - " + faseAtual);
+  display.display();
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(PIN_HEATER, OUTPUT);
+  pinMode(PIN_FAN, OUTPUT);
+  analogWrite(PIN_HEATER, 0);
+  analogWrite(PIN_FAN, 0);
+
+  Wire.begin(I2C_SDA, I2C_SCL);
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  bme.begin(0x76);
+  ds18b20.begin();
+
+  prefs.begin("wifi", true);
+  String ssid = prefs.getString("ssid", "");
+  String pass = prefs.getString("pass", "");
+  prefs.end();
+
+  if (ssid != "") {
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    int tentativas = 0;
+    while (WiFi.status() != WL_CONNECTED && tentativas < 20) {
+      delay(500);
+      tentativas++;
+    }
+  }
+
+  server.on("/", []() { server.send_P(200, "text/html", INDEX_HTML); });
+  server.on("/status", []() {
+    PerfilSecagem p = perfis[perfilAtual];
+    unsigned long dec = (perfilAtual == 0) ? 0 : (millis() - inicioCicloMs) / 60000UL;
+    int tot = p.tempoRampaMin + p.tempoPatamarMin + p.tempoCoolMin;
+    String json = "{";
+    json += "\"t1\":" + String(t1, 1) + ",";
+    json += "\"t2\":" + String(t2, 1) + ",";
+    json += "\"hum\":" + String(umid, 1) + ",";
+    json += "\"perfil\":\"" + p.nome + "\",";
+    json += "\"fase\":\"" + faseAtual + "\",";
+    json += "\"sp\":" + String(setpointAtual, 1) + ",";
+    json += "\"heater\":" + String(pwmHeater) + ",";
+    json += "\"fan\":" + String(pwmFan) + ",";
+    json += "\"minDecorridos\":" + String(dec) + ",";
+    json += "\"minTotal\":" + String(tot);
+    json += "}";
+    server.send(200, "application/json", json);
+  });
+
+  server.on("/set", []() {
+    if (server.hasArg("p")) {
+      int p = server.arg("p").toInt();
+      if (p >= 0 && p <= 4) {
+        perfilAtual = p;
+        inicioCicloMs = millis();
+        tempInicialCiclo = (t1 > 10.0) ? t1 : 25.0;
+      }
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
+  server.begin();
+}
+
+unsigned long ultimoCiclo = 0;
+void loop() {
+  server.handleClient();
+  verificarComandosSerial();
+  if (millis() - ultimoCiclo >= 1500) {
+    ultimoCiclo = millis();
+    lerSensores();
+    processarRampaEControle();
+    atualizarOLED();
+  }
+}
