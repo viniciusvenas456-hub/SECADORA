@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Filament Care C3 | Instalador & Controle</title>
-  <!-- Biblioteca oficial para gravação USB direto do navegador -->
   <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
   <style>
     :root{--bg:#0b1220;--p:#132034;--p2:#1b2b43;--t:#edf4fc;--m:#a7b7cc;--a:#59d6a4;--b:#65a9ff;--line:#2b3d55}
@@ -15,8 +14,6 @@
     button{border:1px solid var(--line);border-radius:10px;background:var(--p2);color:var(--t);padding:11px 14px;cursor:pointer;font-weight:600}
     button.primary{background:var(--a);color:#06251a;border:0;font-weight:750}
     main{max-width:1100px;margin:auto;padding:20px}
-    .hero{padding:30px;border:1px solid var(--line);border-radius:24px;background:radial-gradient(ellipse at 85% 10%,#1c3b52,transparent 50%),var(--p);display:grid;grid-template-columns:1.3fr 1fr;gap:20px}
-    .hero h1{font-size:clamp(30px,4.5vw,48px);margin:10px 0}.muted{color:var(--m)}
     .card{border:1px solid var(--line);background:var(--p);padding:20px;border-radius:16px;margin-top:16px}
     .step{display:flex;gap:12px;align-items:flex-start;margin:14px 0}
     .num{width:34px;height:34px;display:grid;place-items:center;background:#21415a;color:#a9dcff;border-radius:10px;font-weight:bold;flex-shrink:0}
@@ -24,9 +21,9 @@
     label{display:block;margin:8px 0;color:var(--m);font-size:13px}
     input{width:100%;padding:12px;border-radius:10px;background:#0b1525;border:1px solid var(--line);color:var(--t)}
     .tab{display:none}.tab.active{display:block}
-    .log{background:#070d17;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:13px;color:#9ef0c7;margin-top:12px;min-height:48px}
+    .log{background:#070d17;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:13px;color:#9ef0c7;margin-top:12px;min-height:56px;white-space:pre-line}
     table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
-    @media(max-width:760px){.hero,.formgrid{grid-template-columns:1fr}}
+    @media(max-width:760px){.formgrid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -36,47 +33,26 @@
     <div><b>Filament Care C3</b><div class="muted" style="font-size:12px">Secadora & Controle Térmico ESP32-C3</div></div>
   </div>
   <nav>
-    <button data-tab="home">Início</button>
-    <button data-tab="install">Gravar & Wi-Fi</button>
+    <button data-tab="install" class="primary">Gravar & Wi-Fi</button>
     <button data-tab="rampas">Perfis & Rampas</button>
     <button data-tab="manual">Pinagem</button>
   </nav>
 </header>
 
 <main>
-  <!-- ABA INÍCIO -->
-  <div id="home" class="tab active">
-    <section class="hero">
-      <div>
-        <h1>Filament Care C3</h1>
-        <p class="muted">Gravação direta via USB pelo navegador, configuração instantânea de Wi-Fi e controle completo de rampas térmicas para secagem de PLA, PETG, ASA e ABS.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
-          <button class="primary" data-go="install">1. Instalar Firmware & Wi-Fi</button>
-          <button data-go="rampas">Ver Rampas de Secagem</button>
-        </div>
-      </div>
-      <div class="card" style="margin-top:0">
-        <h3>Fluxo de Funcionamento</h3>
-        <div class="step"><div class="num">1</div><div><b>Flash via USB</b><div class="muted">Transfere o firmware compilado direto para o ESP32-C3.</div></div></div>
-        <div class="step"><div class="num">2</div><div><b>Injeção de Wi-Fi</b><div class="muted">Envia SSID e senha via WebSerial para a memória NVS da placa.</div></div></div>
-        <div class="step"><div class="num">3</div><div><b>Acesso pelo IP Local</b><div class="muted">O ESP32-C3 exibe o IP no OLED e hospeda o painel das rampas.</div></div></div>
-      </div>
-    </section>
-  </div>
+  <div id="install" class="tab active">
+    <h2>Instalação e Configuração de Rede no ESP32-C3</h2>
 
-  <!-- ABA INSTALADOR REAL -->
-  <div id="install" class="tab">
-    <h2>Instalação Direta no ESP32-C3</h2>
     <div class="card">
       <div class="step">
         <div class="num">1</div>
         <div>
-          <b>Gravar Firmware na Placa (WebSerial)</b>
-          <p class="muted">Conecte seu ESP32-C3 na porta USB (use Chrome ou Edge). Clique no botão abaixo para transferir o sistema completo.</p>
+          <b>Gravar Firmware via USB</b>
+          <p class="muted">Conecte a placa ESP32-C3 por cabo de dados e grave o binário atualizado.</p>
           <esp-web-install-button manifest="./manifest.json">
             <button slot="activate" class="primary">Conectar e Gravar ESP32-C3</button>
-            <span slot="unsupported">Seu navegador não suporta WebSerial. Use Google Chrome ou Microsoft Edge no PC.</span>
-            <span slot="not-allowed">Este site precisa ser aberto via HTTPS ou localhost para acessar a porta USB.</span>
+            <span slot="unsupported">Use Chrome ou Edge para gravar via USB.</span>
+            <span slot="not-allowed">Abra via HTTPS ou localhost.</span>
           </esp-web-install-button>
         </div>
       </div>
@@ -86,49 +62,50 @@
       <div class="step">
         <div class="num">2</div>
         <div style="width:100%">
-          <b>Configurar Wi-Fi no ESP32-C3</b>
-          <p class="muted">Após gravar o firmware, envie sua rede diretamente para a placa. Ela salvará na memória interna, reiniciará e exibirá o IP no OLED.</p>
+          <b>Enviar Wi-Fi e IP Fixo para a Placa</b>
+          <p class="muted">Preencha o SSID, a senha e, se quiser fixar o endereço na sua rede, informe o IP fixo (deixe vazio para DHCP automático).</p>
           <div class="formgrid">
-            <div><label>Nome da rede (SSID)</label><input id="ssid" placeholder="Ex: MinhaRede_2.4G"></div>
+            <div><label>Nome da rede (SSID)</label><input id="ssid" placeholder="Ex: Rede_Casa_2.4G"></div>
             <div><label>Senha do Wi-Fi</label><input id="pass" type="password" placeholder="Senha da rede"></div>
+            <div><label>IP Fixo (opcional)</label><input id="ip" placeholder="Ex: 192.168.1.168"></div>
+            <div><label>Gateway (opcional — padrão .1)</label><input id="gw" placeholder="Ex: 192.168.1.1"></div>
           </div>
-          <div style="margin-top:14px;display:flex;gap:10px;align-items:center">
-            <button class="primary" onclick="enviarWifiSerial()">Enviar Wi-Fi via USB</button>
+          <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+            <button class="primary" onclick="enviarConfigSerial()">Salvar e Conectar Wi-Fi / IP Fixo</button>
+            <button onclick="preencherIpPadrao()">Usar Exemplo de IP Fixo</button>
           </div>
-          <div class="log" id="serialLog">Aguardando envio das credenciais...</div>
+          <div class="log" id="serialLog">Aguardando envio...</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ABA RAMPAS -->
   <div id="rampas" class="tab">
-    <h2>Curvas e Rampas Embarcadas no Firmware</h2>
+    <h2>Rampas de Secagem Embarcadas</h2>
     <div class="card">
-      <p class="muted">Diferente de secadoras comuns que ligam a resistência no máximo de uma vez, o firmware executa 3 estágios controlados para evitar choque térmico e deformação do carretel:</p>
       <table>
-        <thead><tr><th>Material</th><th>1. Rampa de Subida</th><th>2. Patamar Alvo</th><th>3. Resfriamento</th><th>Tempo Total</th></tr></thead>
+        <thead><tr><th>Material</th><th>Rampa</th><th>Patamar</th><th>Resfriamento</th><th>Total</th></tr></thead>
         <tbody>
-          <tr><td><b>PLA</b></td><td>15 min (gradual)</td><td>50 °C por 4h00</td><td>15 min ventilado</td><td>4h 30m</td></tr>
-          <tr><td><b>PETG</b></td><td>20 min (gradual)</td><td>65 °C por 6h00</td><td>20 min ventilado</td><td>6h 40m</td></tr>
-          <tr><td><b>ASA</b></td><td>25 min (gradual)</td><td>80 °C por 6h00</td><td>25 min ventilado</td><td>6h 50m</td></tr>
-          <tr><td><b>ABS</b></td><td>25 min (gradual)</td><td>80 °C por 6h00</td><td>25 min ventilado</td><td>6h 50m</td></tr>
+          <tr><td><b>PLA</b></td><td>15 min</td><td>50 °C (4h)</td><td>15 min</td><td>4h 30m</td></tr>
+          <tr><td><b>PETG</b></td><td>20 min</td><td>65 °C (6h)</td><td>20 min</td><td>6h 40m</td></tr>
+          <tr><td><b>ASA</b></td><td>25 min</td><td>80 °C (6h)</td><td>25 min</td><td>6h 50m</td></tr>
+          <tr><td><b>ABS</b></td><td>25 min</td><td>80 °C (6h)</td><td>25 min</td><td>6h 50m</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- ABA PINAGEM -->
   <div id="manual" class="tab">
-    <h2>Esquema de Ligação — ESP32-C3 OLED</h2>
+    <h2>Pinagem ESP32-C3</h2>
     <div class="card">
+      <p class="muted">O firmware testa automaticamente os pares I²C (5/6, 8/9, 4/5, 6/7) e endereços 0x3C/0x3D para o OLED.</p>
       <table>
-        <thead><tr><th>Componente</th><th>Pino ESP32-C3</th><th>Observação</th></tr></thead>
+        <thead><tr><th>Função</th><th>Pino</th><th>Observação</th></tr></thead>
         <tbody>
-          <tr><td><b>Display OLED + BME280</b></td><td>SDA: GPIO5 / SCL: GPIO6</td><td>Barramento I²C compartilhado (3.3V)</td></tr>
-          <tr><td><b>2× Sensores DS18B20</b></td><td>GPIO4 (1-Wire)</td><td>Usar resistor pull-up de 4.7kΩ entre GPIO4 e 3.3V</td></tr>
-          <tr><td><b>Aquecedor (MOSFET / SSR)</b></td><td>GPIO2 (PWM)</td><td>Saída controlada por rampa + corte térmico em 105°C</td></tr>
-          <tr><td><b>Ventoinha de Circulação</b></td><td>GPIO3 (PWM)</td><td>Permanece ativa até a câmara baixar de 38°C</td></tr>
+          <tr><td><b>OLED + BME280</b></td><td>Auto-detecção I²C</td><td>Veja o pino detectado no Monitor Serial (115200)</td></tr>
+          <tr><td><b>2× DS18B20</b></td><td>GPIO4</td><td>Pull-up 4.7kΩ para 3.3V</td></tr>
+          <tr><td><b>Aquecedor</b></td><td>GPIO2 (PWM)</td><td>Corte térmico em 105°C</td></tr>
+          <tr><td><b>Ventoinha</b></td><td>GPIO3 (PWM)</td><td>Ativa até esfriar abaixo de 38°C</td></tr>
         </tbody>
       </table>
     </div>
@@ -141,30 +118,69 @@ function show(id){
   document.getElementById(id).classList.add('active');
 }
 document.querySelectorAll('nav [data-tab]').forEach(b=>b.onclick=()=>show(b.dataset.tab));
-document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
 
-async function enviarWifiSerial() {
+function preencherIpPadrao() {
+  document.getElementById('ip').value = "192.168.0.168";
+  document.getElementById('gw').value = "192.168.0.1";
+}
+
+function ipValido(ip) {
+  if (!ip) return true;
+  return /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(ip);
+}
+
+async function enviarConfigSerial() {
   const ssid = document.getElementById('ssid').value.trim();
   const pass = document.getElementById('pass').value;
-  const log = document.getElementById('serialLog');
+  const ip   = document.getElementById('ip').value.trim();
+  const gw   = document.getElementById('gw').value.trim();
+  const log  = document.getElementById('serialLog');
 
-  if (!ssid) { log.innerText = "Erro: Digite o nome da rede Wi-Fi."; return; }
+  if (!ssid) { log.innerText = "Erro: Informe o nome da rede (SSID)."; return; }
+  if (!ipValido(ip) || !ipValido(gw)) { log.innerText = "Erro: Formato de IP ou Gateway inválido."; return; }
   if (!("serial" in navigator)) { log.innerText = "Erro: Navegador sem suporte a WebSerial."; return; }
 
+  let port;
   try {
-    log.innerText = "Selecione a porta USB do ESP32-C3 na janela do navegador...";
-    const port = await navigator.serial.requestPort();
+    log.innerText = "Selecione a porta USB do ESP32-C3...";
+    port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
 
-    const encoder = new TextEncoder();
+    const payload = `WIFI:${ssid}|${pass}|${ip}|${gw}|255.255.255.0|8.8.8.8\n`;
     const writer = port.writable.getWriter();
-    await writer.write(encoder.encode(`WIFI:${ssid}|${pass}\n`));
+    await writer.write(new TextEncoder().encode(payload));
     writer.releaseLock();
 
-    log.innerText = "Credenciais enviadas! O ESP32-C3 está reiniciando e conectando ao Wi-Fi. Verifique o IP na tela OLED da placa.";
-    await port.close();
+    log.innerText = "Enviado! Aguardando resposta do ESP32-C3 (até 16s)...";
+
+    const reader = port.readable.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const limite = Date.now() + 16000;
+
+    while (Date.now() < limite) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        buffer += decoder.decode(value, { stream: true });
+        if (buffer.includes("WIFI_OK_IP:")) {
+          const ipObtido = buffer.split("WIFI_OK_IP:")[1].split("\n")[0].trim();
+          log.innerText = `Conectado com sucesso!\nAcesse o painel em: http://${ipObtido}`;
+          break;
+        }
+        if (buffer.includes("WIFI_FALHA")) {
+          log.innerText = "A placa não conseguiu conectar. Confira SSID, senha, IP fixo/gateway e se a rede é 2.4 GHz.";
+          break;
+        }
+      }
+    }
+    reader.releaseLock();
   } catch (err) {
-    log.innerText = "Falha na comunicação USB: " + err.message;
+    log.innerText = "Erro na comunicação Serial: " + err.message;
+  } finally {
+    if (port) {
+      try { await port.close(); } catch (_) {}
+    }
   }
 }
 </script>
