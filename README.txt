@@ -1,0 +1,1 @@
+Filament Care C3 Portal — protótipo visual. Abra index.html. Instalador USB e formulário Wi-Fi são demonstrativos e não implementados. Monitoramento somente; não inclui controle de aquecimento.
