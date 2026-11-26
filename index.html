@@ -333,7 +333,18 @@
             break;
           }
           if (texto.includes('WIFI_FALHA')) {
-            log.innerText = 'Falha ao conectar no Wi-Fi. Verifique SSID, senha e se a rede é 2.4 GHz.';
+            const m = texto.match(/WIFI_MOTIVO:(\d+)/);
+            const cod = m ? parseInt(m[1], 10) : 0;
+            const dica = {
+              201: 'A placa NÃO ENCONTROU essa rede. Nome errado (maiúsculas/minúsculas contam), rede 5 GHz ou placa longe do roteador.',
+              202: 'Autenticação recusada: senha errada.',
+              15: 'Senha errada (falha no handshake de segurança).',
+              204: 'Senha errada ou tipo de segurança incompatível (handshake).',
+              205: 'O roteador recusou a conexão (filtro de MAC, limite de aparelhos ou segurança).',
+              200: 'Sinal fraco ou perdeu a rede (beacon timeout).',
+              2: 'Autenticação expirou: sinal fraco ou roteador ocupado.'
+            }[cod] || 'Motivo não identificado.';
+            log.innerText = 'Falha ao conectar no Wi-Fi (código ' + cod + ').\n' + dica;
             break;
           }
           if (texto.includes('WIFI_DESCONECTADO') || texto.includes('WIFI_SEM_CONFIG')) {
