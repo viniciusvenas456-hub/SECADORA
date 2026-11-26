@@ -413,11 +413,17 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.5");
+  u8g2.drawStr(2, 21, "C3 v1.0.6");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
 
+  Serial.print("I2C encontrados:");
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) Serial.printf(" 0x%02X", a);
+  }
+  Serial.println("  (OLED=0x3C, BME280=0x76 ou 0x77)");
   bmeOk = bme.begin(0x76) || bme.begin(0x77);
   Serial.println(bmeOk ? "BME280 OK" : "BME280 NAO ENCONTRADO");
   ds18b20.begin();
@@ -481,6 +487,15 @@ void loop() {
 
   if (millis() - ultimoCiclo >= 1500) {
     ultimoCiclo = millis();
+    static unsigned long ultimaBuscaBme = 0, ultimoDiag = 0;
+    if (!bmeOk && millis() - ultimaBuscaBme > 5000UL) {
+      ultimaBuscaBme = millis();
+      bmeOk = bme.begin(0x76) || bme.begin(0x77);
+    }
+    if (millis() - ultimoDiag > 5000UL) {
+      ultimoDiag = millis();
+      Serial.printf("DIAG ds=%d bme=%d t1=%.1f t2=%.1f umid=%.0f\n", dsCount, (int)bmeOk, t1, t2, umid);
+    }
     static bool primeiro = true;
     if (primeiro) Serial.println("LOOP 1: sensores");
     lerSensores();
