@@ -413,7 +413,7 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.6");
+  u8g2.drawStr(2, 21, "C3 v1.0.7");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
@@ -424,6 +424,16 @@ void setup() {
     if (Wire.endTransmission() == 0) Serial.printf(" 0x%02X", a);
   }
   Serial.println("  (OLED=0x3C, BME280=0x76 ou 0x77)");
+  for (int a = 0x76; a <= 0x77; a++) {
+    Wire.beginTransmission(a);
+    Wire.write(0xD0);   // registrador do ID do chip
+    if (Wire.endTransmission() == 0 && Wire.requestFrom(a, 1) == 1) {
+      int id = Wire.read();
+      Serial.printf("Chip em 0x%02X: ID 0x%02X -> %s\n", a, id,
+                    id == 0x60 ? "BME280 (mede umidade)" :
+                    (id >= 0x56 && id <= 0x58) ? "BMP280 (NAO mede umidade)" : "desconhecido");
+    }
+  }
   bmeOk = bme.begin(0x76) || bme.begin(0x77);
   Serial.println(bmeOk ? "BME280 OK" : "BME280 NAO ENCONTRADO");
   ds18b20.begin();
