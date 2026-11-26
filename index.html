@@ -31,6 +31,9 @@
     input:focus{outline:none;border-color:var(--a)}
     .tab{display:none}.tab.active{display:block}
     .log{background:#070d17;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:13px;color:#9ef0c7;margin-top:12px;min-height:52px;white-space:pre-line;line-height:1.5}
+    .ip-alert{display:none;background:#103326;border:1px solid var(--a);border-radius:14px;padding:16px;margin-top:14px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .ip-alert.show{display:flex}
+    .ip-big{font-size:22px;font-weight:900;color:#9ef0c7;font-family:monospace}
     .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}
     .kpi{background:#0d1729;border:1px solid var(--line);border-radius:14px;padding:16px}
     .kpi .val{font-size:30px;font-weight:800;color:var(--a);margin-top:4px}
@@ -57,20 +60,75 @@
     </div>
   </div>
   <nav>
-    <button data-tab="painel" class="primary">Painel & IP</button>
-    <button data-tab="config">Configurar Wi-Fi / IP Fixo</button>
-    <button data-tab="rampas">Rampas</button>
+    <button data-tab="config" class="primary">1. Wi-Fi & Descobrir IP (USB)</button>
+    <button data-tab="painel">2. Painel & Rampas</button>
+    <button data-tab="rampas">Tabela de Curvas</button>
   </nav>
 </header>
 
 <main>
-  <!-- ABA 1: CONECTAR PELO IP E CONTROLAR RAMPAS -->
-  <div id="painel" class="tab active">
+  <!-- ABA 1: CONFIGURAR WI-FI E RECEBER O IP LOGADO VIA USB -->
+  <div id="config" class="tab active">
+    <div class="card">
+      <h2 style="margin-top:0">Conectar Wi-Fi e Retornar IP Logado (via USB)</h2>
+      <p class="muted">Preencha sua rede Wi-Fi. Se quiser fixar um IP, digite no campo abaixo; se deixar em branco, o roteador escolhe o IP e o ESP32-C3 devolve aqui na tela qual IP ele pegou.</p>
+
+      <div class="formgrid">
+        <div>
+          <label>Nome da rede Wi-Fi (SSID - 2.4 GHz)</label>
+          <input id="ssid" placeholder="Ex: MinhaRede_2.4G">
+        </div>
+        <div>
+          <label>Senha do Wi-Fi</label>
+          <input id="pass" type="password" placeholder="Senha do Wi-Fi">
+        </div>
+        <div>
+          <label>IP Fixo (opcional — deixe vazio para pegar automático)</label>
+          <input id="ipFixo" placeholder="Ex: 10.0.0.168 ou 192.168.1.168">
+        </div>
+        <div>
+          <label>Gateway (opcional — padrão .1)</label>
+          <input id="gwFixo" placeholder="Ex: 10.0.0.1 ou 192.168.1.1">
+        </div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary" onclick="salvarWifiEIpSerial()">Enviar Wi-Fi e Obter IP via USB</button>
+        <button class="secondary" onclick="consultarIpUsb()">Já está configurado — Só ler IP via USB</button>
+      </div>
+
+      <!-- BANNER DE IP RETORNADO PELA PLACA -->
+      <div id="ipAlert" class="ip-alert">
+        <div>
+          <div class="muted" style="color:#9ef0c7">ESP32-C3 LOGADO NA REDE! O IP DA SECADORA É:</div>
+          <div class="ip-big" id="ipRetornadoTexto">0.0.0.0</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="primary" onclick="abrirPaginaPlaca()">Abrir Secadora (http://IP)</button>
+          <button class="secondary" onclick="irParaPainel()">Ir para Painel</button>
+        </div>
+      </div>
+
+      <div class="log" id="serialLog">Aguardando envio ou leitura via cabo USB...</div>
+    </div>
+
+    <div class="card" id="flashBox">
+      <h2 style="margin-top:0">Gravar Firmware no ESP32-C3 (via USB)</h2>
+      <p class="muted">Use este botão caso ainda não tenha gravado o <code>firmware.bin</code> na placa.</p>
+      <esp-web-install-button id="webFlashBtn" manifest="./manifest.json">
+        <button slot="activate" class="secondary">Gravar firmware.bin via USB</button>
+        <span slot="unsupported">Use Google Chrome ou Microsoft Edge no computador.</span>
+      </esp-web-install-button>
+    </div>
+  </div>
+
+  <!-- ABA 2: PAINEL DE CONTROLE -->
+  <div id="painel" class="tab">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
         <div>
-          <h2 style="margin:0">Acesso Direto pelo IP da Secadora</h2>
-          <div class="muted">Digite o IP do seu ESP32-C3 na rede local para controlar ou abrir a página interna da placa.</div>
+          <h2 style="margin:0">Controle da Secadora por IP</h2>
+          <div class="muted">IP preenchido automaticamente após conexão USB ou digitado manualmente.</div>
         </div>
         <span id="connBadge" class="badge off">Desconectado</span>
       </div>
@@ -82,9 +140,6 @@
         </div>
         <button class="primary" onclick="conectarIp()">Conectar Painel</button>
         <button class="secondary" onclick="abrirPaginaPlaca()">Abrir http://IP</button>
-      </div>
-      <div class="muted" style="margin-top:8px">
-        Nota: Como este site está em HTTPS (GitHub Pages), navegadores bloqueiam chamadas internas para HTTP local por padrão. Se o painel ao vivo não carregar aqui dentro, clique em <b>Abrir http://IP</b> para abrir a interface hospedada direto no ESP32-C3.
       </div>
     </div>
 
@@ -120,48 +175,6 @@
     </div>
   </div>
 
-  <!-- ABA 2: CONFIGURAR WI-FI E IP FIXO VIA USB -->
-  <div id="config" class="tab">
-    <div class="card">
-      <h2 style="margin-top:0">1. Configurar Wi-Fi e IP Fixo no ESP32-C3 (via USB)</h2>
-      <p class="muted">Conecte o ESP32-C3 no cabo USB, preencha sua rede e o IP fixo desejado e clique em salvar. A placa gravará na memória interna e conectará imediatamente.</p>
-
-      <div class="formgrid">
-        <div>
-          <label>Nome da rede Wi-Fi (SSID - 2.4 GHz)</label>
-          <input id="ssid" placeholder="Ex: MinhaRede_2.4G">
-        </div>
-        <div>
-          <label>Senha do Wi-Fi</label>
-          <input id="pass" type="password" placeholder="Senha do Wi-Fi">
-        </div>
-        <div>
-          <label>IP Fixo desejado (deixe vazio para automático/DHCP)</label>
-          <input id="ipFixo" placeholder="Ex: 10.0.0.168 ou 192.168.1.168">
-        </div>
-        <div>
-          <label>Gateway do roteador (opcional — padrão .1)</label>
-          <input id="gwFixo" placeholder="Ex: 10.0.0.1 ou 192.168.1.1">
-        </div>
-      </div>
-
-      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="primary" onclick="salvarWifiEIpSerial()">Salvar Wi-Fi e IP Fixo na Placa</button>
-        <button onclick="lerSerialPlaca()">Ler IP Atual da Placa via USB</button>
-      </div>
-      <div class="log" id="serialLog">Pronto. Conecte o cabo USB e clique em "Salvar Wi-Fi e IP Fixo na Placa".</div>
-    </div>
-
-    <div class="card" id="flashBox">
-      <h2 style="margin-top:0">2. Gravar Firmware (Opcional via Navegador)</h2>
-      <p class="muted">Disponível quando <code>manifest.json</code> e <code>firmware.bin</code> estiverem na mesma pasta do site.</p>
-      <esp-web-install-button id="webFlashBtn" manifest="./manifest.json">
-        <button slot="activate" class="secondary">Gravar firmware.bin via USB</button>
-        <span slot="unsupported">Use Google Chrome ou Microsoft Edge no computador.</span>
-      </esp-web-install-button>
-    </div>
-  </div>
-
   <!-- ABA 3: TABELA DE RAMPAS -->
   <div id="rampas" class="tab">
     <div class="card">
@@ -180,22 +193,22 @@
 </main>
 
 <script>
-  // Navegação entre abas
+  function ativarAba(id) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
   document.querySelectorAll('nav [data-tab]').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.getElementById(btn.dataset.tab).classList.add('active');
-    };
+    btn.onclick = () => ativarAba(btn.dataset.tab);
   });
 
-  // Oculta o botão de flash se manifest.json não existir na pasta (evita caixa branca quebrada)
   fetch('./manifest.json', { method: 'HEAD' })
     .then(r => { if (!r.ok) document.getElementById('flashBox').style.display = 'none'; })
     .catch(() => { document.getElementById('flashBox').style.display = 'none'; });
 
-  // Carrega último IP salvo no navegador
   const ipSalvo = localStorage.getItem('fc_c3_ip') || '';
-  if (ipSalvo) document.getElementById('targetIp').value = ipSalvo;
+  if (ipSalvo) {
+    document.getElementById('targetIp').value = ipSalvo;
+  }
 
   let timerPoll = null;
 
@@ -208,11 +221,22 @@
     return document.getElementById('targetIp').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   }
 
+  function registrarIpEncontrado(ipFinal) {
+    document.getElementById('targetIp').value = ipFinal;
+    document.getElementById('ipRetornadoTexto').innerText = ipFinal;
+    document.getElementById('ipAlert').classList.add('show');
+    localStorage.setItem('fc_c3_ip', ipFinal);
+  }
+
   function abrirPaginaPlaca() {
     const ip = getIpLimpo();
-    if (!ipValido(ip)) { alert('Digite um endereço IP válido (ex: 10.0.0.168 ou 192.168.1.168).'); return; }
-    localStorage.setItem('fc_c3_ip', ip);
+    if (!ipValido(ip)) { alert('Nenhum IP válido encontrado ainda.'); return; }
     window.open('http://' + ip, '_blank');
+  }
+
+  function irParaPainel() {
+    ativarAba('painel');
+    conectarIp();
   }
 
   function conectarIp() {
@@ -243,7 +267,7 @@
       const pct = d.minTotal > 0 ? Math.min(100, (d.minDecorridos / d.minTotal) * 100) : 0;
       document.getElementById('prog').style.width = pct + '%';
     } catch (e) {
-      badge.innerText = 'Bloqueado pelo navegador ou offline (use "Abrir http://IP")';
+      badge.innerText = 'Use o botão "Abrir http://IP" (HTTPS bloqueia HTTP local)';
       badge.className = 'badge off';
     }
   }
@@ -259,7 +283,60 @@
     }
   }
 
-  async function salvarWifiEIpSerial() {
+  async function comunicarSerial(comandoEnviar, tempoEsperaMs) {
+    const log = document.getElementById('serialLog');
+    if (!('serial' in navigator)) {
+      log.innerText = 'Erro: Use Google Chrome ou Microsoft Edge no PC para ler a USB.';
+      return;
+    }
+
+    let port;
+    try {
+      log.innerText = 'Selecione a porta USB do ESP32-C3 na janela do navegador...';
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      const writer = port.writable.getWriter();
+      await writer.write(new TextEncoder().encode(comandoEnviar));
+      writer.releaseLock();
+
+      log.innerText = 'Aguardando resposta do ESP32-C3 pelo cabo USB...';
+
+      const reader = port.readable.getReader();
+      const decoder = new TextDecoder();
+      let texto = '';
+      const fim = Date.now() + tempoEsperaMs;
+
+      while (Date.now() < fim) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          texto += decoder.decode(value, { stream: true });
+          if (texto.includes('WIFI_OK_IP:')) {
+            const ipFinal = texto.split('WIFI_OK_IP:')[1].split('\n')[0].trim();
+            registrarIpEncontrado(ipFinal);
+            log.innerText = `SUCESSO! O ESP32-C3 está logado no IP: ${ipFinal}\nClique no botão verde acima para abrir.`;
+            break;
+          }
+          if (texto.includes('WIFI_FALHA')) {
+            log.innerText = 'Falha ao conectar no Wi-Fi. Verifique SSID, senha e se a rede é 2.4 GHz.';
+            break;
+          }
+          if (texto.includes('WIFI_DESCONECTADO') || texto.includes('WIFI_SEM_CONFIG')) {
+            log.innerText = 'A placa ainda não está conectada no Wi-Fi. Preencha SSID e senha acima e clique em "Enviar Wi-Fi e Obter IP via USB".';
+            break;
+          }
+        }
+      }
+      reader.releaseLock();
+    } catch (err) {
+      log.innerText = 'Erro na porta USB: ' + err.message;
+    } finally {
+      if (port) { try { await port.close(); } catch (_) {} }
+    }
+  }
+
+  function salvarWifiEIpSerial() {
     const ssid = document.getElementById('ssid').value.trim();
     const pass = document.getElementById('pass').value;
     const ip   = document.getElementById('ipFixo').value.trim();
@@ -269,76 +346,13 @@
     if (!ssid) { log.innerText = 'Erro: Digite o nome da rede Wi-Fi (SSID).'; return; }
     if (ip && !ipValido(ip)) { log.innerText = 'Erro: IP Fixo inválido.'; return; }
     if (gw && !ipValido(gw)) { log.innerText = 'Erro: Gateway inválido.'; return; }
-    if (!('serial' in navigator)) { log.innerText = 'Erro: Use Google Chrome ou Microsoft Edge para enviar via USB.'; return; }
 
-    let port;
-    try {
-      log.innerText = 'Selecione a porta USB do ESP32-C3 na janela do navegador...';
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
-
-      const comando = `WIFI:${ssid}|${pass}|${ip}|${gw}|255.255.255.0|8.8.8.8\n`;
-      const writer = port.writable.getWriter();
-      await writer.write(new TextEncoder().encode(comando));
-      writer.releaseLock();
-
-      log.innerText = 'Dados enviados! Aguardando o ESP32-C3 conectar no Wi-Fi (até 16s)...';
-
-      const reader = port.readable.getReader();
-      const decoder = new TextDecoder();
-      let texto = '';
-      const fim = Date.now() + 16000;
-
-      while (Date.now() < fim) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          texto += decoder.decode(value, { stream: true });
-          if (texto.includes('WIFI_OK_IP:')) {
-            const ipFinal = texto.split('WIFI_OK_IP:')[1].split('\n')[0].trim();
-            document.getElementById('targetIp').value = ipFinal;
-            localStorage.setItem('fc_c3_ip', ipFinal);
-            log.innerText = `CONECTADO COM SUCESSO!\nIP da secadora: ${ipFinal}\nClique no botão "Abrir http://IP" na aba Painel & IP para acessar.`;
-            break;
-          }
-          if (texto.includes('WIFI_FALHA')) {
-            log.innerText = 'Falha ao conectar no Wi-Fi. Verifique se a rede é 2.4 GHz, se a senha está certa e se o IP fixo está na mesma faixa do roteador.';
-            break;
-          }
-        }
-      }
-      reader.releaseLock();
-    } catch (err) {
-      log.innerText = 'Erro USB: ' + err.message;
-    } finally {
-      if (port) { try { await port.close(); } catch (_) {} }
-    }
+    const comando = `WIFI:${ssid}|${pass}|${ip}|${gw}|255.255.255.0|8.8.8.8\n`;
+    comunicarSerial(comando, 16000);
   }
 
-  async function lerSerialPlaca() {
-    const log = document.getElementById('serialLog');
-    if (!('serial' in navigator)) { log.innerText = 'Navegador sem suporte a WebSerial.'; return; }
-    let port;
-    try {
-      port = await navigator.serial.requestPort();
-      await port.open({ baudRate: 115200 });
-      log.innerText = 'Lendo saída da placa por 4 segundos (aperte RST na placa se necessário)...';
-      const reader = port.readable.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      const fim = Date.now() + 4000;
-      while (Date.now() < fim) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) buf += decoder.decode(value, { stream: true });
-      }
-      reader.releaseLock();
-      log.innerText = buf.trim() ? 'Saída do ESP32-C3:\n' + buf.trim() : 'Nenhum dado recebido. Verifique se o firmware já foi gravado no ESP32-C3.';
-    } catch (e) {
-      log.innerText = 'Erro: ' + e.message;
-    } finally {
-      if (port) { try { await port.close(); } catch (_) {} }
-    }
+  function consultarIpUsb() {
+    comunicarSerial('GET_IP\n', 5000);
   }
 </script>
 </body>
