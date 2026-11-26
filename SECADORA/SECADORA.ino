@@ -280,6 +280,17 @@ void verificarComandosSerial() {
     cmd.trim();
 
     if (cmd == "GET_IP") { reportarStatusSerial(); continue; }
+    if (cmd == "SCAN") {
+      int n = WiFi.scanNetworks();
+      for (int i = 0; i < n; i++) {
+        String nome = WiFi.SSID(i);
+        if (nome.length() == 0 || nome.indexOf('|') >= 0) continue;
+        Serial.println("NET:" + nome + "|" + String(WiFi.RSSI(i)));
+      }
+      WiFi.scanDelete();
+      Serial.println("SCAN_END");
+      continue;
+    }
     if (!cmd.startsWith("WIFI:")) continue;
 
     String dados = cmd.substring(5);
@@ -397,7 +408,7 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.3");
+  u8g2.drawStr(2, 21, "C3 v1.0.4");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
