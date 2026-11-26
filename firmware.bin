@@ -2,7 +2,7 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <Wire.h>
-#include <U8g2lib.h>          // ← biblioteca correta
+#include <U8g2lib.h>
 #include <Adafruit_BME280.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -10,9 +10,10 @@
 #define ONE_WIRE_BUS 4
 #define PIN_HEATER   2
 #define PIN_FAN      3
+#define PIN_LED      8          // LED azul da placa (ativo em LOW)
 
-// Construtor correto para o OLED 0.42" 72x40
-U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ 6, /* data=*/ 5);
+// OLED 0.42" 72x40
+U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 
 Adafruit_BME280 bme;
 OneWire oneWire(ONE_WIRE_BUS);
@@ -106,7 +107,8 @@ setInterval(atualizar,2000);atualizar();
 )rawliteral";
 
 bool parseIP(const String &str, IPAddress &ipOut) {
-  String s = str; s.trim();
+  String s = str;
+  s.trim();
   if (s.length() == 0) return false;
   return ipOut.fromString(s);
 }
@@ -132,6 +134,7 @@ void conectarWifiSalvo() {
   if (ssid.length() == 0) {
     statusWifiMsg = "Sem SSID";
     Serial.println("WIFI_SEM_CONFIG");
+    digitalWrite(PIN_LED, HIGH);   // apaga
     return;
   }
 
@@ -151,19 +154,26 @@ void conectarWifiSalvo() {
 
   WiFi.begin(ssid.c_str(), pass.c_str());
   statusWifiMsg = "Conectando...";
+  Serial.println("Tentando conectar WiFi...");
 
   int tentativas = 0;
   while (WiFi.status() != WL_CONNECTED && tentativas < 30) {
-    delay(500);
+    // Pisca o LED enquanto procura Wi-Fi
+    digitalWrite(PIN_LED, LOW);    // acende
+    delay(200);
+    digitalWrite(PIN_LED, HIGH);   // apaga
+    delay(300);
     tentativas++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
     statusWifiMsg = WiFi.localIP().toString();
     Serial.println("WIFI_OK_IP:" + statusWifiMsg);
+    digitalWrite(PIN_LED, LOW);    // fica aceso fixo
   } else {
     statusWifiMsg = "Falha Wi-Fi";
     Serial.println("WIFI_FALHA");
+    digitalWrite(PIN_LED, HIGH);   // apaga
   }
 }
 
@@ -267,25 +277,25 @@ void atualizarOLED() {
   if (!oledOk) return;
 
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_5x8_tr);   // fonte pequena (tela é minúscula)
+  u8g2.setFont(u8g2_font_5x8_tr);
 
-  // Linha 1 - IP ou status WiFi
+  // Linha 1 - IP ou status
   if (WiFi.status() == WL_CONNECTED) {
     u8g2.drawStr(0, 8, WiFi.localIP().toString().c_str());
   } else {
     u8g2.drawStr(0, 8, statusWifiMsg.c_str());
   }
 
-  // Linha 2 - Temperatura câmara + alvo
+  // Linha 2
   char buf[32];
   snprintf(buf, sizeof(buf), "Cam:%.1f Alvo:%.0f", t1, setpointAtual);
   u8g2.drawStr(0, 18, buf);
 
-  // Linha 3 - PTC + Umidade
+  // Linha 3
   snprintf(buf, sizeof(buf), "PTC:%.1f U:%.0f%%", t2, umid);
   u8g2.drawStr(0, 28, buf);
 
-  // Linha 4 - Perfil + Fase
+  // Linha 4
   String linha = perfis[perfilAtual].nome + " " + faseAtual;
   u8g2.drawStr(0, 38, linha.c_str());
 
@@ -294,14 +304,18 @@ void atualizarOLED() {
 
 void setup() {
   Serial.begin(115200);
-  delay(400);
+  delay(1200);
+  Serial.println();
+  Serial.println("=== Filament Care C3 ===");
 
   pinMode(PIN_HEATER, OUTPUT);
   pinMode(PIN_FAN, OUTPUT);
+  pinMode(PIN_LED, OUTPUT);
   analogWrite(PIN_HEATER, 0);
   analogWrite(PIN_FAN, 0);
+  digitalWrite(PIN_LED, HIGH);   // apaga no início
 
-  // Inicializa I2C e OLED 72x40
+  // OLED
   Wire.begin(5, 6);
   u8g2.begin();
   u8g2.setContrast(255);
@@ -310,17 +324,19 @@ void setup() {
 
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x10_tr);
-  u8g2.drawStr(5, 20, "Filament Care");
-  u8g2.drawStr(18, 32, "C3");
+  u8g2.drawStr(4, 16, "Filament Care");
+  u8g2.drawStr(18, 30, "C3");
   u8g2.sendBuffer();
-  delay(800);
+  delay(900);
 
   bme.begin(0x76);
   ds18b20.begin();
+
   conectarWifiSalvo();
   atualizarOLED();
 
   server.on("/", []() { server.send_P(200, "text/html", INDEX_HTML); });
+  
   server.on("/status", []() {
     PerfilSecagem p = perfis[perfilAtual];
     unsigned long dec = (perfilAtual == 0) ? 0 : (millis() - inicioCicloMs) / 60000UL;
@@ -359,6 +375,7 @@ unsigned long ultimoCiclo = 0;
 void loop() {
   server.handleClient();
   verificarComandosSerial();
+
   if (millis() - ultimoCiclo >= 1500) {
     ultimoCiclo = millis();
     lerSensores();
