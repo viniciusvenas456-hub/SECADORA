@@ -140,6 +140,7 @@ void conectarWifiSalvo() {
   if (ssid.length() == 0) {
     statusWifiMsg = "Sem SSID";
     Serial.println("WIFI_SEM_CONFIG");
+    WiFi.mode(WIFI_STA);   // liga a pilha de rede; sem isso server.begin() derruba a placa (PANIC)
     return;
   }
 
