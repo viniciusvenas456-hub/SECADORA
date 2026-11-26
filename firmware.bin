@@ -2,22 +2,18 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <U8g2lib.h>          // ← biblioteca correta
 #include <Adafruit_BME280.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-int sdaAtual = 5;
-int sclAtual = 6;
-uint8_t addrOled = 0x3C;
-bool oledOk = false;
-
 #define ONE_WIRE_BUS 4
-#define PIN_HEATER 2
-#define PIN_FAN 3
+#define PIN_HEATER   2
+#define PIN_FAN      3
 
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
+// Construtor correto para o OLED 0.42" 72x40
+U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ 6, /* data=*/ 5);
+
 Adafruit_BME280 bme;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature ds18b20(&oneWire);
@@ -49,10 +45,11 @@ String faseAtual = "Aguardando";
 float t1 = 0, t2 = 0, tAmb = 0, umid = 0;
 int pwmHeater = 0, pwmFan = 0;
 String statusWifiMsg = "Sem rede";
+bool oledOk = false;
 
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Filament Care C3 | Controle</title>
+<title>Filament Care C3</title>
 <style>
 :root{--bg:#0b1220;--p:#132034;--p2:#1b2b43;--t:#edf4fc;--m:#a7b7cc;--a:#59d6a4;--w:#f59e0b;--d:#ef4444;--line:#2b3d55}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,sans-serif;padding:20px}
@@ -68,25 +65,25 @@ button:hover{border-color:var(--a)}button.stop{background:#3b161c;border-color:v
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center">
     <div><span class="muted">STATUS DO CICLO</span><h3 style="margin:4px 0" id="fase">Carregando...</h3></div>
-    <div style="text-align:right"><span class="muted">ALVO ATUAL (RAMPA)</span><h3 style="margin:4px 0;color:var(--w)" id="sp">-- °C</h3></div>
+    <div style="text-align:right"><span class="muted">ALVO ATUAL</span><h3 style="margin:4px 0;color:var(--w)" id="sp">-- °C</h3></div>
   </div>
   <div class="bar"><div class="fill" id="prog"></div></div>
   <div class="muted" style="margin-top:8px" id="tempo">Tempo decorrido: 0 min</div>
 </div>
 <div class="grid">
-  <div class="card"><div class="muted">CÂMARA (DS18B20 #1)</div><div class="val" id="t1">-- °C</div></div>
-  <div class="card"><div class="muted">AQUECEDOR (DS18B20 #2)</div><div class="val" id="t2">-- °C</div></div>
-  <div class="card"><div class="muted">UMIDADE (BME280)</div><div class="val" id="hum">-- %</div></div>
+  <div class="card"><div class="muted">CÂMARA</div><div class="val" id="t1">-- °C</div></div>
+  <div class="card"><div class="muted">AQUECEDOR</div><div class="val" id="t2">-- °C</div></div>
+  <div class="card"><div class="muted">UMIDADE</div><div class="val" id="hum">-- %</div></div>
   <div class="card"><div class="muted">POTÊNCIA / FAN</div><div class="val" id="pwr">--% / --%</div></div>
 </div>
 <div class="card">
-  <h3 style="margin-top:0">Iniciar Rampa de Secagem</h3>
+  <h3 style="margin-top:0">Iniciar Rampa</h3>
   <div class="btns">
     <button onclick="setP(1)">PLA<br><span class="muted">50°C · 4h30</span></button>
     <button onclick="setP(2)">PETG<br><span class="muted">65°C · 6h40</span></button>
     <button onclick="setP(3)">ASA<br><span class="muted">80°C · 6h50</span></button>
     <button onclick="setP(4)">ABS<br><span class="muted">80°C · 6h50</span></button>
-    <button class="stop" onclick="setP(0)">PARAR<br><span class="muted">Desligar</span></button>
+    <button class="stop" onclick="setP(0)">PARAR</button>
   </div>
 </div></div>
 <script>
@@ -108,35 +105,8 @@ setInterval(atualizar,2000);atualizar();
 </script></body></html>
 )rawliteral";
 
-bool detectarEIniciarOled() {
-  int pares[][2] = {{5, 6}, {8, 9}, {4, 5}, {6, 7}};
-  uint8_t addrs[] = {0x3C, 0x3D};
-
-  for (auto &par : pares) {
-    Wire.end();
-    Wire.begin(par[0], par[1]);
-    for (uint8_t addr : addrs) {
-      if (display.begin(SSD1306_SWITCHCAPVCC, addr)) {
-        sdaAtual = par[0];
-        sclAtual = par[1];
-        addrOled = addr;
-        oledOk = true;
-        display.clearDisplay();
-        display.setTextSize(1);
-        display.setTextColor(SSD1306_WHITE);
-        display.setCursor(0, 0);
-        display.println("Filament Care C3");
-        display.display();
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 bool parseIP(const String &str, IPAddress &ipOut) {
-  String s = str;
-  s.trim();
+  String s = str; s.trim();
   if (s.length() == 0) return false;
   return ipOut.fromString(s);
 }
@@ -270,8 +240,7 @@ void verificarComandosSerial() {
 
   String dados = cmd.substring(5);
   String partes[6];
-  int idx = 0;
-  int start = 0;
+  int idx = 0, start = 0;
   while (idx < 6) {
     int pos = dados.indexOf('|', start);
     if (pos == -1) {
@@ -296,34 +265,56 @@ void verificarComandosSerial() {
 
 void atualizarOLED() {
   if (!oledOk) return;
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);   // fonte pequena (tela é minúscula)
+
+  // Linha 1 - IP ou status WiFi
   if (WiFi.status() == WL_CONNECTED) {
-    display.print("IP: ");
-    display.println(WiFi.localIP());
+    u8g2.drawStr(0, 8, WiFi.localIP().toString().c_str());
   } else {
-    display.println(statusWifiMsg);
+    u8g2.drawStr(0, 8, statusWifiMsg.c_str());
   }
-  display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
-  display.setCursor(0, 14);
-  display.printf("Cam: %.1fC  Alvo: %.0fC\n", t1, setpointAtual);
-  display.printf("PTC: %.1fC  Umid: %.0f%%\n", t2, umid);
-  display.setCursor(0, 38);
-  display.println(perfis[perfilAtual].nome + " - " + faseAtual);
-  display.display();
+
+  // Linha 2 - Temperatura câmara + alvo
+  char buf[32];
+  snprintf(buf, sizeof(buf), "Cam:%.1f Alvo:%.0f", t1, setpointAtual);
+  u8g2.drawStr(0, 18, buf);
+
+  // Linha 3 - PTC + Umidade
+  snprintf(buf, sizeof(buf), "PTC:%.1f U:%.0f%%", t2, umid);
+  u8g2.drawStr(0, 28, buf);
+
+  // Linha 4 - Perfil + Fase
+  String linha = perfis[perfilAtual].nome + " " + faseAtual;
+  u8g2.drawStr(0, 38, linha.c_str());
+
+  u8g2.sendBuffer();
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(300);
+  delay(400);
+
   pinMode(PIN_HEATER, OUTPUT);
   pinMode(PIN_FAN, OUTPUT);
   analogWrite(PIN_HEATER, 0);
   analogWrite(PIN_FAN, 0);
 
-  detectarEIniciarOled();
+  // Inicializa I2C e OLED 72x40
+  Wire.begin(5, 6);
+  u8g2.begin();
+  u8g2.setContrast(255);
+  u8g2.setBusClock(400000);
+  oledOk = true;
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x10_tr);
+  u8g2.drawStr(5, 20, "Filament Care");
+  u8g2.drawStr(18, 32, "C3");
+  u8g2.sendBuffer();
+  delay(800);
+
   bme.begin(0x76);
   ds18b20.begin();
   conectarWifiSalvo();
