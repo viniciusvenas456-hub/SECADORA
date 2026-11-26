@@ -76,6 +76,7 @@
       <div class="formgrid">
         <div>
           <label>Nome da rede Wi-Fi (SSID - 2.4 GHz)</label>
+          <select id="redes" style="display:none;margin-bottom:8px" onchange="if(this.value)document.getElementById('ssid').value=this.value"></select>
           <input id="ssid" placeholder="Ex: MinhaRede_2.4G">
         </div>
         <div>
@@ -94,6 +95,7 @@
 
       <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
         <button class="primary" onclick="salvarWifiEIpSerial()">Enviar Wi-Fi e Obter IP via USB</button>
+        <button class="secondary" onclick="buscarRedes()">Buscar redes (2,4 GHz)</button>
         <button class="secondary" onclick="consultarIpUsb()">Já está configurado — Só ler IP via USB</button>
       </div>
 
@@ -296,7 +298,12 @@
       port = await navigator.serial.requestPort();
       await port.open({ baudRate: 115200 });
       // Abrir a porta pode reiniciar a placa: solta DTR/RTS e espera ela subir
-      try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch (_) {}
+      try {
+        // Sequência de "hard reset": tira a placa do modo download e inicia o programa
+        await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+        await new Promise(r => setTimeout(r, 120));
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+      } catch (_) {}
       log.innerText = 'Porta aberta. Aguardando a placa iniciar...';
       await new Promise(r => setTimeout(r, 2500));
 
@@ -348,6 +355,61 @@
     }
   }
 
+  async function buscarRedes() {
+    const log = document.getElementById('serialLog');
+    const sel = document.getElementById('redes');
+    if (!('serial' in navigator)) { log.innerText = 'Erro: use Google Chrome ou Microsoft Edge no PC.'; return; }
+    let port;
+    try {
+      log.innerText = 'Selecione a porta USB do ESP32-C3...';
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      try {
+        await port.setSignals({ dataTerminalReady: false, requestToSend: true });
+        await new Promise(r => setTimeout(r, 120));
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+      } catch (_) {}
+      log.innerText = 'Aguardando a placa iniciar e escanear as redes (pode levar até 30 s)...';
+      await new Promise(r => setTimeout(r, 2500));
+      const reader = port.readable.getReader();
+      const corte = setTimeout(() => { try { reader.cancel(); } catch (_) {} }, 40000);
+      const writer = port.writable.getWriter();
+      await writer.write(new TextEncoder().encode('SCAN\n'));
+      writer.releaseLock();
+      const dec = new TextDecoder();
+      let texto = '';
+      while (!texto.includes('SCAN_END')) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) texto += dec.decode(value, { stream: true });
+      }
+      clearTimeout(corte);
+      try { reader.releaseLock(); } catch (_) {}
+      const mapa = {};
+      texto.split('\n').forEach(l => {
+        l = l.trim();
+        if (!l.startsWith('NET:')) return;
+        const i = l.lastIndexOf('|');
+        const nome = l.slice(4, i), rssi = parseInt(l.slice(i + 1), 10);
+        if (nome && (!(nome in mapa) || rssi > mapa[nome])) mapa[nome] = rssi;
+      });
+      const lista = Object.entries(mapa).sort((a, b) => b[1] - a[1]);
+      if (!lista.length) {
+        log.innerText = 'Nenhuma rede 2,4 GHz encontrada. Aproxime a placa do roteador e tente de novo.';
+        sel.style.display = 'none';
+      } else {
+        sel.innerHTML = '<option value="">Escolha sua rede (' + lista.length + ' encontradas)...</option>' +
+          lista.map(([n, r]) => '<option value="' + n.replace(/"/g, '&quot;') + '">' + n.replace(/</g, '&lt;') + '  (' + r + ' dBm)</option>').join('');
+        sel.style.display = 'block';
+        log.innerText = 'Escolha a rede na lista, digite a senha e clique em "Enviar Wi-Fi e Obter IP via USB".';
+      }
+    } catch (err) {
+      log.innerText = 'Erro na porta USB: ' + err.message;
+    } finally {
+      if (port) { try { await port.close(); } catch (_) {} }
+    }
+  }
+
   function salvarWifiEIpSerial() {
     const ssid = document.getElementById('ssid').value.trim();
     const pass = document.getElementById('pass').value;
@@ -360,11 +422,11 @@
     if (gw && !ipValido(gw)) { log.innerText = 'Erro: Gateway inválido.'; return; }
 
     const comando = `WIFI:${ssid}|${pass}|${ip}|${gw}|255.255.255.0|8.8.8.8\n`;
-    comunicarSerial(comando, 16000);
+    comunicarSerial(comando, 45000);
   }
 
   function consultarIpUsb() {
-    comunicarSerial('GET_IP\n', 5000);
+    comunicarSerial('GET_IP\n', 30000);
   }
 </script>
 </body>
