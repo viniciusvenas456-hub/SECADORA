@@ -49,6 +49,8 @@ int pwmHeater = 0, pwmFan = 0;
 String statusWifiMsg = "Sem rede";
 bool oledOk = false;
 bool bmeOk = false;
+int dsCount = 0;
+unsigned long ultimaBuscaDs = 0;
 bool dsOk[2] = {false, false};
 unsigned long ultimoT1Ok = 0, ultimoT2Ok = 0;
 bool falhaSensor = false;
@@ -183,6 +185,16 @@ void conectarWifiSalvo() {
 }
 
 void lerSensores() {
+  if (dsCount == 0) {
+    // sem sensor: só tenta achar de novo a cada 5 s, sem tocar no barramento a cada ciclo
+    if (millis() - ultimaBuscaDs > 5000UL) {
+      ultimaBuscaDs = millis();
+      ds18b20.begin();
+      dsCount = ds18b20.getDeviceCount();
+    }
+    falhaSensor = true;
+    return;
+  }
   ds18b20.requestTemperatures();
   float r1 = ds18b20.getTempCByIndex(0);
   float r2 = ds18b20.getTempCByIndex(1);
@@ -385,7 +397,7 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.2");
+  u8g2.drawStr(2, 21, "C3 v1.0.3");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
@@ -394,11 +406,14 @@ void setup() {
   Serial.println(bmeOk ? "BME280 OK" : "BME280 NAO ENCONTRADO");
   ds18b20.begin();
   ds18b20.setResolution(10);
-  Serial.printf("DS18B20 encontrados: %d\n", ds18b20.getDeviceCount());
+  dsCount = ds18b20.getDeviceCount();
+  Serial.printf("DS18B20 encontrados: %d\n", dsCount);
   ultimoT1Ok = ultimoT2Ok = millis();
 
   conectarWifiSalvo();
+  Serial.println("STEP 1: wifi ok");
   atualizarOLED();
+  Serial.println("STEP 2: oled ok");
 
   server.on("/", []() { server.send_P(200, "text/html", INDEX_HTML); });
   
@@ -433,7 +448,9 @@ void setup() {
     server.send(200, "text/plain", "OK");
   });
 
+  Serial.println("STEP 3: rotas ok");
   server.begin();
+  Serial.println("STEP 4: servidor ok");
 }
 
 unsigned long ultimoCiclo = 0;
@@ -445,8 +462,13 @@ void loop() {
 
   if (millis() - ultimoCiclo >= 1500) {
     ultimoCiclo = millis();
+    static bool primeiro = true;
+    if (primeiro) Serial.println("LOOP 1: sensores");
     lerSensores();
+    if (primeiro) Serial.println("LOOP 2: controle");
     processarRampaEControle();
+    if (primeiro) Serial.println("LOOP 3: oled");
     atualizarOLED();
+    if (primeiro) { Serial.println("LOOP 4: ok"); primeiro = false; }
   }
 }
