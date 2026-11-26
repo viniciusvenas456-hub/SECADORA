@@ -5,20 +5,16 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <Adafruit_BME280.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
 
-#define ONE_WIRE_BUS 4
+#define ONE_WIRE_BUS 3
 #define PIN_HEATER   2
-#define PIN_FAN      3
+#define PIN_FAN      7
 #define PIN_LED      8          // LED azul da placa (ativo em LOW)
 
 // OLED 0.42" 72x40
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, 6, 5);
 
 Adafruit_BME280 bme;
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature ds18b20(&oneWire);
 WebServer server(80);
 Preferences prefs;
 
@@ -189,32 +185,166 @@ void conectarWifiSalvo() {
   }
 }
 
-void lerSensores() {
-  if (dsCount == 0) {
-    // sem sensor: só tenta achar de novo a cada 5 s, sem tocar no barramento a cada ciclo
-    if (millis() - ultimaBuscaDs > 5000UL) {
-      ultimaBuscaDs = millis();
-      ds18b20.begin();
-      dsCount = ds18b20.getDeviceCount();
-    }
-    falhaSensor = true;
-    return;
+// ===== 1-Wire próprio (sem OneWire/DallasTemperature) =====
+int owPin = ONE_WIRE_BUS;
+uint8_t owRom[2][8];
+uint8_t owSearchRom[8];
+uint8_t owLastDiscrepancy = 0;
+bool owLastDevice = false;
+bool owConvStarted = false;
+unsigned long owConvStart = 0;
+portMUX_TYPE owMux = portMUX_INITIALIZER_UNLOCKED;
+
+void owInitPin() {
+  pinMode(owPin, OUTPUT_OPEN_DRAIN | PULLUP);   // dreno aberto + pull-up interno de reforço
+  digitalWrite(owPin, HIGH);
+}
+
+bool owReset() {
+  digitalWrite(owPin, HIGH);
+  uint32_t t0 = micros();
+  while (digitalRead(owPin) == LOW) {
+    if (micros() - t0 > 300) return false;       // linha presa em baixo (curto)
   }
-  ds18b20.requestTemperatures();
-  float r1 = ds18b20.getTempCByIndex(0);
-  float r2 = ds18b20.getTempCByIndex(1);
+  digitalWrite(owPin, LOW);
+  delayMicroseconds(480);
+  digitalWrite(owPin, HIGH);
+  delayMicroseconds(70);
+  bool presente = (digitalRead(owPin) == LOW);   // o sensor puxa a linha para baixo
+  delayMicroseconds(410);
+  return presente;
+}
+
+void owWriteBit(uint8_t b) {
+  portENTER_CRITICAL(&owMux);
+  digitalWrite(owPin, LOW);
+  if (b) { delayMicroseconds(6);  digitalWrite(owPin, HIGH); delayMicroseconds(64); }
+  else   { delayMicroseconds(60); digitalWrite(owPin, HIGH); delayMicroseconds(10); }
+  portEXIT_CRITICAL(&owMux);
+}
+
+uint8_t owReadBit() {
+  portENTER_CRITICAL(&owMux);
+  digitalWrite(owPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(owPin, HIGH);
+  delayMicroseconds(8);
+  uint8_t r = digitalRead(owPin) ? 1 : 0;
+  delayMicroseconds(55);
+  portEXIT_CRITICAL(&owMux);
+  return r;
+}
+
+void owWriteByte(uint8_t v) { for (uint8_t i = 0; i < 8; i++) { owWriteBit(v & 1); v >>= 1; } }
+uint8_t owReadByte() { uint8_t v = 0; for (uint8_t i = 0; i < 8; i++) v |= (owReadBit() << i); return v; }
+
+uint8_t owCrc8(const uint8_t* d, uint8_t len) {
+  uint8_t crc = 0;
+  while (len--) {
+    uint8_t in = *d++;
+    for (uint8_t i = 8; i; i--) {
+      uint8_t mix = (crc ^ in) & 1;
+      crc >>= 1;
+      if (mix) crc ^= 0x8C;
+      in >>= 1;
+    }
+  }
+  return crc;
+}
+
+// Busca de ROM padrão (Maxim AN187)
+bool owSearchNext(uint8_t* out) {
+  int idBitNumber = 1, lastZero = 0, romByteNumber = 0;
+  uint8_t romByteMask = 1, idBit, cmpIdBit, dir;
+  bool found = false;
+  if (!owLastDevice) {
+    if (!owReset()) { owLastDiscrepancy = 0; owLastDevice = false; return false; }
+    owWriteByte(0xF0);
+    do {
+      idBit = owReadBit();
+      cmpIdBit = owReadBit();
+      if (idBit && cmpIdBit) break;               // nenhum dispositivo respondeu
+      if (idBit != cmpIdBit) {
+        dir = idBit;
+      } else {
+        if (idBitNumber < owLastDiscrepancy) dir = ((owSearchRom[romByteNumber] & romByteMask) > 0);
+        else dir = (idBitNumber == owLastDiscrepancy);
+        if (!dir) lastZero = idBitNumber;
+      }
+      if (dir) owSearchRom[romByteNumber] |= romByteMask;
+      else owSearchRom[romByteNumber] &= ~romByteMask;
+      owWriteBit(dir);
+      idBitNumber++;
+      romByteMask <<= 1;
+      if (romByteMask == 0) { romByteNumber++; romByteMask = 1; }
+    } while (romByteNumber < 8);
+    if (!(idBitNumber < 65)) {
+      owLastDiscrepancy = lastZero;
+      if (owLastDiscrepancy == 0) owLastDevice = true;
+      found = true;
+    }
+  }
+  if (!found || !owSearchRom[0]) {
+    owLastDiscrepancy = 0; owLastDevice = false; found = false;
+  } else {
+    memcpy(out, owSearchRom, 8);
+  }
+  return found;
+}
+
+int owScan() {
+  int n = 0;
+  owLastDiscrepancy = 0; owLastDevice = false;
+  memset(owSearchRom, 0, 8);
+  uint8_t rom[8];
+  while (n < 2 && owSearchNext(rom)) {
+    if (owCrc8(rom, 7) == rom[7] && rom[0] == 0x28) memcpy(owRom[n++], rom, 8);   // 0x28 = DS18B20
+  }
+  return n;
+}
+
+void owStartConversion() {
+  if (!owReset()) return;
+  owWriteByte(0xCC);   // SKIP ROM
+  owWriteByte(0x44);   // CONVERT T
+}
+
+bool owReadTemp(const uint8_t* rom, float& t) {
+  if (!owReset()) return false;
+  owWriteByte(0x55);   // MATCH ROM
+  for (int i = 0; i < 8; i++) owWriteByte(rom[i]);
+  owWriteByte(0xBE);   // READ SCRATCHPAD
+  uint8_t sp[9];
+  for (int i = 0; i < 9; i++) sp[i] = owReadByte();
+  if (owCrc8(sp, 8) != sp[8]) return false;
+  int16_t raw = (int16_t)((sp[1] << 8) | sp[0]);
+  t = raw / 16.0f;
+  return true;
+}
+
+void lerSensores() {
   unsigned long agora = millis();
-  // -127 = sensor ausente; 85.0 exato = valor de power-on do DS18B20
-  if (r1 > -50 && r1 < 125 && r1 != 85.0) { t1 = r1; ultimoT1Ok = agora; }
-  if (r2 > -50 && r2 < 125 && r2 != 85.0) { t2 = r2; ultimoT2Ok = agora; }
   if (bmeOk) {
     float h = bme.readHumidity();
     float t = bme.readTemperature();
     if (!isnan(h)) umid = h;
     if (!isnan(t)) tAmb = t;
   }
-  // sem leitura válida por 10 s = falha (o aquecedor é cortado)
+  if (dsCount == 0) {
+    // sem sensor: tenta achar de novo a cada 5 s
+    if (agora - ultimaBuscaDs > 5000UL) { ultimaBuscaDs = agora; owInitPin(); dsCount = owScan(); }
+    falhaSensor = true;
+    return;
+  }
+  if (!owConvStarted) { owStartConversion(); owConvStarted = true; owConvStart = agora; return; }
+  if (agora - owConvStart < 800UL) return;       // 12 bits = ~750 ms de conversão
+  owConvStarted = false;
+  float v;
+  if (owReadTemp(owRom[0], v) && v > -50 && v < 125 && v != 85.0f) { t1 = v; ultimoT1Ok = agora; }
+  if (dsCount > 1 && owReadTemp(owRom[1], v) && v > -50 && v < 125 && v != 85.0f) { t2 = v; ultimoT2Ok = agora; }
+  // sem leitura válida dos dois por 10 s = falha (o aquecedor é cortado)
   falhaSensor = (agora - ultimoT1Ok > 10000UL) || (agora - ultimoT2Ok > 10000UL);
+  if (agora - ultimoT1Ok > 15000UL) dsCount = 0;   // perdeu os sensores: volta a procurar
 }
 
 void processarRampaEControle() {
@@ -413,7 +543,7 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.7");
+  u8g2.drawStr(2, 21, "C3 v1.1.0");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
@@ -436,10 +566,30 @@ void setup() {
   }
   bmeOk = bme.begin(0x76) || bme.begin(0x77);
   Serial.println(bmeOk ? "BME280 OK" : "BME280 NAO ENCONTRADO");
-  ds18b20.begin();
-  ds18b20.setResolution(10);
-  dsCount = ds18b20.getDeviceCount();
+  // Nível da linha de dado em repouso, sem pull-up interno (equivale a medir DAT com o multímetro)
+  pinMode(ONE_WIRE_BUS, INPUT);
+  delay(20);
+  Serial.printf("Linha de dado (GPIO %d) em repouso: %s\n", ONE_WIRE_BUS,
+                digitalRead(ONE_WIRE_BUS) ? "ALTA (pull-up ok)" : "BAIXA (curto, sem pull-up ou sem alimentacao)");
+  // Procura presença de dispositivo 1-Wire em vários pinos (acha pino impresso errado na placa)
+  {
+    Serial.print("1-Wire presente em GPIO:");
+    const int cand[] = {0, 1, 3, 4, 10, 20, 21};   // fora: 2 (aquecedor) e 7 (ventoinha)
+    bool achou = false;
+    for (int g : cand) {
+      owPin = g; owInitPin();
+      if (owReset()) { Serial.printf(" %d", g); achou = true; }
+    }
+    owPin = ONE_WIRE_BUS; owInitPin();
+    Serial.println(achou ? "  (esperado: 3)" : " nenhum (sem sensor/pull-up/alimentacao)");
+  }
+  dsCount = owScan();
   Serial.printf("DS18B20 encontrados: %d\n", dsCount);
+  for (int i = 0; i < dsCount; i++) {
+    Serial.printf("  #%d ROM:", i + 1);
+    for (int k = 0; k < 8; k++) Serial.printf(" %02X", owRom[i][k]);
+    Serial.println();
+  }
   ultimoT1Ok = ultimoT2Ok = millis();
 
   WiFi.onEvent([](WiFiEvent_t ev, WiFiEventInfo_t info) {
