@@ -8,7 +8,6 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-// --- PINOS PADRÃO (AJUSTÁVEIS SE NECESSÁRIO) ---
 int sdaAtual = 5;
 int sclAtual = 6;
 uint8_t addrOled = 0x3C;
@@ -122,19 +121,16 @@ bool detectarEIniciarOled() {
         sclAtual = par[1];
         addrOled = addr;
         oledOk = true;
-        Serial.printf("OLED OK -> SDA:%d SCL:%d ADDR:0x%02X\n", sdaAtual, sclAtual, addrOled);
         display.clearDisplay();
         display.setTextSize(1);
         display.setTextColor(SSD1306_WHITE);
         display.setCursor(0, 0);
         display.println("Filament Care C3");
-        display.printf("SDA:%d SCL:%d\n", sdaAtual, sclAtual);
         display.display();
         return true;
       }
     }
   }
-  Serial.println("OLED NAO DETECTADO nos pinos testados.");
   return false;
 }
 
@@ -143,6 +139,14 @@ bool parseIP(const String &str, IPAddress &ipOut) {
   s.trim();
   if (s.length() == 0) return false;
   return ipOut.fromString(s);
+}
+
+void reportarStatusSerial() {
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("WIFI_OK_IP:" + WiFi.localIP().toString());
+  } else {
+    Serial.println("WIFI_DESCONECTADO");
+  }
 }
 
 void conectarWifiSalvo() {
@@ -167,19 +171,12 @@ void conectarWifiSalvo() {
 
   IPAddress localIP, gateway, subnet, dns;
   if (parseIP(ipStr, localIP)) {
-    if (!parseIP(gwStr, gateway)) {
-      gateway = IPAddress(localIP[0], localIP[1], localIP[2], 1);
-    }
-    if (!parseIP(snStr, subnet)) {
-      subnet = IPAddress(255, 255, 255, 0);
-    }
-    if (!parseIP(dnsStr, dns)) {
-      dns = IPAddress(8, 8, 8, 8);
-    }
+    if (!parseIP(gwStr, gateway)) gateway = IPAddress(localIP[0], localIP[1], localIP[2], 1);
+    if (!parseIP(snStr, subnet))  subnet  = IPAddress(255, 255, 255, 0);
+    if (!parseIP(dnsStr, dns))    dns     = IPAddress(8, 8, 8, 8);
     WiFi.config(localIP, gateway, subnet, dns);
-    Serial.printf("Usando IP Fixo: %s | GW: %s\n", localIP.toString().c_str(), gateway.toString().c_str());
   } else {
-    Serial.println("Usando DHCP automatico...");
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
   }
 
   WiFi.begin(ssid.c_str(), pass.c_str());
@@ -188,14 +185,12 @@ void conectarWifiSalvo() {
   int tentativas = 0;
   while (WiFi.status() != WL_CONNECTED && tentativas < 30) {
     delay(500);
-    Serial.print(".");
     tentativas++;
   }
-  Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     statusWifiMsg = WiFi.localIP().toString();
-    Serial.println("WIFI_OK_IP:" + WiFi.localIP().toString());
+    Serial.println("WIFI_OK_IP:" + statusWifiMsg);
   } else {
     statusWifiMsg = "Falha Wi-Fi";
     Serial.println("WIFI_FALHA");
@@ -261,11 +256,16 @@ void processarRampaEControle() {
   analogWrite(PIN_FAN, pwmFan);
 }
 
-// Formato: WIFI:SSID|SENHA|IP_FIXO|GATEWAY|MASCARA|DNS
 void verificarComandosSerial() {
   if (!Serial.available()) return;
   String cmd = Serial.readStringUntil('\n');
   cmd.trim();
+
+  if (cmd == "GET_IP") {
+    reportarStatusSerial();
+    return;
+  }
+
   if (!cmd.startsWith("WIFI:")) return;
 
   String dados = cmd.substring(5);
@@ -291,7 +291,6 @@ void verificarComandosSerial() {
   prefs.putString("dns",  partes[5].length() ? partes[5] : "8.8.8.8");
   prefs.end();
 
-  Serial.println("WIFI_SALVO_CONECTANDO");
   conectarWifiSalvo();
 }
 
