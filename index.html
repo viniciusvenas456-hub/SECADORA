@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Filament Care C3 | Controle & Configuração IP</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    :root{
+      --bg:#0b1220; --p:#132034; --p2:#1b2b43; --t:#edf4fc; --m:#a7b7cc;
+      --a:#59d6a4; --b:#65a9ff; --w:#f59e0b; --d:#ef4444; --line:#2b3d55;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+    header{padding:18px 20px;max-width:1100px;margin:auto;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{background:linear-gradient(135deg,var(--a),var(--b));color:#06251a;border-radius:12px;padding:10px 13px;font-weight:900;font-size:16px}
+    nav{display:flex;gap:8px;flex-wrap:wrap}
+    button{border:1px solid var(--line);border-radius:10px;background:var(--p2);color:var(--t);padding:11px 15px;cursor:pointer;font-weight:650;font-size:14px;transition:.15s}
+    button:hover{border-color:var(--a)}
+    button.primary{background:var(--a);color:#06251a;border:0;font-weight:800}
+    button.secondary{background:#1d3554;border-color:#355885;color:#cfe4ff}
+    button.stop{background:#3b161c;border-color:var(--d);color:#fca5a5}
+    main{max-width:1100px;margin:auto;padding:20px}
+    .card{border:1px solid var(--line);background:var(--p);padding:20px;border-radius:16px;margin-bottom:16px}
+    .muted{color:var(--m);font-size:13px}
+    .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .ipbar{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end}
+    label{display:block;margin:6px 0;color:var(--m);font-size:13px;font-weight:600}
+    input{width:100%;padding:12px;border-radius:10px;background:#0b1525;border:1px solid var(--line);color:var(--t);font-size:14px}
+    input:focus{outline:none;border-color:var(--a)}
+    .tab{display:none}.tab.active{display:block}
+    .log{background:#070d17;border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:13px;color:#9ef0c7;margin-top:12px;min-height:52px;white-space:pre-line;line-height:1.5}
+    .ip-alert{display:none;background:#103326;border:1px solid var(--a);border-radius:14px;padding:16px;margin-top:14px;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .ip-alert.show{display:flex}
+    .ip-big{font-size:22px;font-weight:900;color:#9ef0c7;font-family:monospace}
+    .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}
+    .kpi{background:#0d1729;border:1px solid var(--line);border-radius:14px;padding:16px}
+    .kpi .val{font-size:30px;font-weight:800;color:var(--a);margin-top:4px}
+    .btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:12px}
+    .bar{height:10px;background:#0b1525;border-radius:99px;overflow:hidden;margin-top:10px}
+    .fill{height:100%;background:var(--a);width:0%;transition:.4s}
+    .badge{display:inline-block;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:700;background:#1b362d;color:var(--a)}
+    .badge.off{background:#2d1c24;color:#fca5a5}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+    @media(max-width:760px){
+      .formgrid,.ipbar{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="logo">FC</div>
+    <div>
+      <b>Filament Care C3</b>
+      <div class="muted">Secadora Inteligente · ESP32-C3</div>
+    </div>
+  </div>
+  <nav>
+    <button data-tab="config" class="primary">1. Wi-Fi & Descobrir IP (USB)</button>
+    <button data-tab="painel">2. Painel & Rampas</button>
+    <button data-tab="rampas">Tabela de Curvas</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ABA 1: CONFIGURAR WI-FI E RECEBER O IP LOGADO VIA USB -->
+  <div id="config" class="tab active">
+    <div class="card">
+      <h2 style="margin-top:0">Conectar Wi-Fi e Retornar IP Logado (via USB)</h2>
+      <p class="muted">Preencha sua rede Wi-Fi. Se quiser fixar um IP, digite no campo abaixo; se deixar em branco, o roteador escolhe o IP e o ESP32-C3 devolve aqui na tela qual IP ele pegou.</p>
+
+      <div class="formgrid">
+        <div>
+          <label>Nome da rede Wi-Fi (SSID - 2.4 GHz)</label>
+          <input id="ssid" placeholder="Ex: MinhaRede_2.4G">
+        </div>
+        <div>
+          <label>Senha do Wi-Fi</label>
+          <input id="pass" type="password" placeholder="Senha do Wi-Fi">
+        </div>
+        <div>
+          <label>IP Fixo (opcional — deixe vazio para pegar automático)</label>
+          <input id="ipFixo" placeholder="Ex: 10.0.0.168 ou 192.168.1.168">
+        </div>
+        <div>
+          <label>Gateway (opcional — padrão .1)</label>
+          <input id="gwFixo" placeholder="Ex: 10.0.0.1 ou 192.168.1.1">
+        </div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary" onclick="salvarWifiEIpSerial()">Enviar Wi-Fi e Obter IP via USB</button>
+        <button class="secondary" onclick="consultarIpUsb()">Já está configurado — Só ler IP via USB</button>
+      </div>
+
+      <!-- BANNER DE IP RETORNADO PELA PLACA -->
+      <div id="ipAlert" class="ip-alert">
+        <div>
+          <div class="muted" style="color:#9ef0c7">ESP32-C3 LOGADO NA REDE! O IP DA SECADORA É:</div>
+          <div class="ip-big" id="ipRetornadoTexto">0.0.0.0</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="primary" onclick="abrirPaginaPlaca()">Abrir Secadora (http://IP)</button>
+          <button class="secondary" onclick="irParaPainel()">Ir para Painel</button>
+        </div>
+      </div>
+
+      <div class="log" id="serialLog">Aguardando envio ou leitura via cabo USB...</div>
+    </div>
+
+    <div class="card" id="flashBox">
+      <h2 style="margin-top:0">Gravar Firmware no ESP32-C3 (via USB)</h2>
+      <p class="muted">Use este botão caso ainda não tenha gravado o <code>firmware.bin</code> na placa.</p>
+      <esp-web-install-button id="webFlashBtn" manifest="./manifest.json">
+        <button slot="activate" class="secondary">Gravar firmware.bin via USB</button>
+        <span slot="unsupported">Use Google Chrome ou Microsoft Edge no computador.</span>
+      </esp-web-install-button>
+    </div>
+  </div>
+
+  <!-- ABA 2: PAINEL DE CONTROLE -->
+  <div id="painel" class="tab">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div>
+          <h2 style="margin:0">Controle da Secadora por IP</h2>
+          <div class="muted">IP preenchido automaticamente após conexão USB ou digitado manualmente.</div>
+        </div>
+        <span id="connBadge" class="badge off">Desconectado</span>
+      </div>
+
+      <div class="ipbar">
+        <div>
+          <label>Endereço IP do ESP32-C3</label>
+          <input id="targetIp" placeholder="Ex: 10.0.0.168 ou 192.168.1.168">
+        </div>
+        <button class="primary" onclick="conectarIp()">Conectar Painel</button>
+        <button class="secondary" onclick="abrirPaginaPlaca()">Abrir http://IP</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <div>
+          <span class="muted">STATUS DO CICLO</span>
+          <h3 style="margin:4px 0" id="fase">Aguardando conexão com o IP...</h3>
+        </div>
+        <div style="text-align:right">
+          <span class="muted">ALVO ATUAL (RAMPA)</span>
+          <h3 style="margin:4px 0;color:var(--w)" id="sp">-- °C</h3>
+        </div>
+      </div>
+      <div class="bar"><div class="fill" id="prog"></div></div>
+      <div class="muted" style="margin-top:8px" id="tempo">Tempo decorrido: 0 min</div>
+
+      <div class="grid4">
+        <div class="kpi"><div class="muted">CÂMARA (DS18B20 #1)</div><div class="val" id="t1">-- °C</div></div>
+        <div class="kpi"><div class="muted">AQUECEDOR (DS18B20 #2)</div><div class="val" id="t2">-- °C</div></div>
+        <div class="kpi"><div class="muted">UMIDADE (BME280)</div><div class="val" id="hum">-- %</div></div>
+        <div class="kpi"><div class="muted">AQUECEDOR / FAN</div><div class="val" id="pwr">--% / --%</div></div>
+      </div>
+
+      <h3 style="margin:14px 0 6px">Iniciar Perfil com Rampa Térmica</h3>
+      <div class="btns">
+        <button onclick="enviarPerfil(1)">PLA<br><span class="muted">50°C · 4h30</span></button>
+        <button onclick="enviarPerfil(2)">PETG<br><span class="muted">65°C · 6h40</span></button>
+        <button onclick="enviarPerfil(3)">ASA<br><span class="muted">80°C · 6h50</span></button>
+        <button onclick="enviarPerfil(4)">ABS<br><span class="muted">80°C · 6h50</span></button>
+        <button class="stop" onclick="enviarPerfil(0)">PARAR<br><span class="muted">Desligar</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABA 3: TABELA DE RAMPAS -->
+  <div id="rampas" class="tab">
+    <div class="card">
+      <h2 style="margin-top:0">Perfis e Rampas de Secagem</h2>
+      <table>
+        <thead><tr><th>Material</th><th>1. Rampa de Subida</th><th>2. Patamar</th><th>3. Resfriamento</th><th>Total</th></tr></thead>
+        <tbody>
+          <tr><td><b>PLA</b></td><td>15 min gradual</td><td>50 °C (4h)</td><td>15 min ventilado</td><td>4h 30m</td></tr>
+          <tr><td><b>PETG</b></td><td>20 min gradual</td><td>65 °C (6h)</td><td>20 min ventilado</td><td>6h 40m</td></tr>
+          <tr><td><b>ASA</b></td><td>25 min gradual</td><td>80 °C (6h)</td><td>25 min ventilado</td><td>6h 50m</td></tr>
+          <tr><td><b>ABS</b></td><td>25 min gradual</td><td>80 °C (6h)</td><td>25 min ventilado</td><td>6h 50m</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+  function ativarAba(id) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+  document.querySelectorAll('nav [data-tab]').forEach(btn => {
+    btn.onclick = () => ativarAba(btn.dataset.tab);
+  });
+
+  fetch('./manifest.json', { method: 'HEAD' })
+    .then(r => { if (!r.ok) document.getElementById('flashBox').style.display = 'none'; })
+    .catch(() => { document.getElementById('flashBox').style.display = 'none'; });
+
+  const ipSalvo = localStorage.getItem('fc_c3_ip') || '';
+  if (ipSalvo) {
+    document.getElementById('targetIp').value = ipSalvo;
+  }
+
+  let timerPoll = null;
+
+  function ipValido(ip) {
+    if (!ip) return false;
+    return /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(ip);
+  }
+
+  function getIpLimpo() {
+    return document.getElementById('targetIp').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  }
+
+  function registrarIpEncontrado(ipFinal) {
+    document.getElementById('targetIp').value = ipFinal;
+    document.getElementById('ipRetornadoTexto').innerText = ipFinal;
+    document.getElementById('ipAlert').classList.add('show');
+    localStorage.setItem('fc_c3_ip', ipFinal);
+  }
+
+  function abrirPaginaPlaca() {
+    const ip = getIpLimpo();
+    if (!ipValido(ip)) { alert('Nenhum IP válido encontrado ainda.'); return; }
+    window.open('http://' + ip, '_blank');
+  }
+
+  function irParaPainel() {
+    ativarAba('painel');
+    conectarIp();
+  }
+
+  function conectarIp() {
+    const ip = getIpLimpo();
+    if (!ipValido(ip)) { alert('Digite um endereço IP válido.'); return; }
+    localStorage.setItem('fc_c3_ip', ip);
+    if (timerPoll) clearInterval(timerPoll);
+    atualizarStatusIp();
+    timerPoll = setInterval(atualizarStatusIp, 2000);
+  }
+
+  async function atualizarStatusIp() {
+    const ip = getIpLimpo();
+    if (!ipValido(ip)) return;
+    const badge = document.getElementById('connBadge');
+    try {
+      const resp = await fetch(`http://${ip}/status`);
+      const d = await resp.json();
+      badge.innerText = `Conectado (${ip})`;
+      badge.className = 'badge';
+      document.getElementById('t1').innerText = d.t1.toFixed(1) + ' °C';
+      document.getElementById('t2').innerText = d.t2.toFixed(1) + ' °C';
+      document.getElementById('hum').innerText = d.hum.toFixed(1) + ' %';
+      document.getElementById('fase').innerText = `${d.perfil} — ${d.fase}`;
+      document.getElementById('sp').innerText = d.sp.toFixed(1) + ' °C';
+      document.getElementById('pwr').innerText = `${Math.round(d.heater/2.55)}% / ${Math.round(d.fan/2.55)}%`;
+      document.getElementById('tempo').innerText = `Decorrido: ${d.minDecorridos} min / Total: ${d.minTotal} min`;
+      const pct = d.minTotal > 0 ? Math.min(100, (d.minDecorridos / d.minTotal) * 100) : 0;
+      document.getElementById('prog').style.width = pct + '%';
+    } catch (e) {
+      badge.innerText = 'Use o botão "Abrir http://IP" (HTTPS bloqueia HTTP local)';
+      badge.className = 'badge off';
+    }
+  }
+
+  async function enviarPerfil(p) {
+    const ip = getIpLimpo();
+    if (!ipValido(ip)) { alert('Informe o IP da placa primeiro.'); return; }
+    try {
+      await fetch(`http://${ip}/set?p=${p}`);
+      atualizarStatusIp();
+    } catch (e) {
+      window.open(`http://${ip}`, '_blank');
+    }
+  }
+
+  async function comunicarSerial(comandoEnviar, tempoEsperaMs) {
+    const log = document.getElementById('serialLog');
+    if (!('serial' in navigator)) {
+      log.innerText = 'Erro: Use Google Chrome ou Microsoft Edge no PC para ler a USB.';
+      return;
+    }
+
+    let port;
+    try {
+      log.innerText = 'Selecione a porta USB do ESP32-C3 na janela do navegador...';
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      // Abrir a porta pode reiniciar a placa: solta DTR/RTS e espera ela subir
+      try { await port.setSignals({ dataTerminalReady: false, requestToSend: false }); } catch (_) {}
+      log.innerText = 'Porta aberta. Aguardando a placa iniciar...';
+      await new Promise(r => setTimeout(r, 2500));
+
+      const reader = port.readable.getReader();
+      // Sem isso o reader.read() trava para sempre se a placa ficar calada
+      const corte = setTimeout(() => { try { reader.cancel(); } catch (_) {} }, tempoEsperaMs);
+
+      const writer = port.writable.getWriter();
+      await writer.write(new TextEncoder().encode(comandoEnviar));
+      writer.releaseLock();
+
+      log.innerText = 'Aguardando resposta do ESP32-C3 pelo cabo USB...';
+
+      const decoder = new TextDecoder();
+      let texto = '';
+      const fim = Date.now() + tempoEsperaMs;
+
+      while (Date.now() < fim) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          texto += decoder.decode(value, { stream: true });
+          if (texto.includes('WIFI_OK_IP:')) {
+            const ipFinal = texto.split('WIFI_OK_IP:')[1].split('\n')[0].trim();
+            registrarIpEncontrado(ipFinal);
+            log.innerText = `SUCESSO! O ESP32-C3 está logado no IP: ${ipFinal}\nClique no botão verde acima para abrir.`;
+            break;
+          }
+          if (texto.includes('WIFI_FALHA')) {
+            log.innerText = 'Falha ao conectar no Wi-Fi. Verifique SSID, senha e se a rede é 2.4 GHz.';
+            break;
+          }
+          if (texto.includes('WIFI_DESCONECTADO') || texto.includes('WIFI_SEM_CONFIG')) {
+            log.innerText = 'A placa ainda não está conectada no Wi-Fi. Preencha SSID e senha acima e clique em "Enviar Wi-Fi e Obter IP via USB".';
+            break;
+          }
+        }
+      }
+      clearTimeout(corte);
+      if (!/WIFI_OK_IP|WIFI_FALHA|WIFI_DESCONECTADO|WIFI_SEM_CONFIG/.test(texto)) {
+        log.innerText = 'A placa não respondeu. Recebido:\n' + (texto.trim() || '(nada)') +
+          '\n\nSe vier vazio, o firmware não está rodando (regrave com o merged.bin) ou "USB CDC On Boot" estava desligado.';
+      }
+      try { reader.releaseLock(); } catch (_) {}
+    } catch (err) {
+      log.innerText = 'Erro na porta USB: ' + err.message;
+    } finally {
+      if (port) { try { await port.close(); } catch (_) {} }
+    }
+  }
+
+  function salvarWifiEIpSerial() {
+    const ssid = document.getElementById('ssid').value.trim();
+    const pass = document.getElementById('pass').value;
+    const ip   = document.getElementById('ipFixo').value.trim();
+    const gw   = document.getElementById('gwFixo').value.trim();
+    const log  = document.getElementById('serialLog');
+
+    if (!ssid) { log.innerText = 'Erro: Digite o nome da rede Wi-Fi (SSID).'; return; }
+    if (ip && !ipValido(ip)) { log.innerText = 'Erro: IP Fixo inválido.'; return; }
+    if (gw && !ipValido(gw)) { log.innerText = 'Erro: Gateway inválido.'; return; }
+
+    const comando = `WIFI:${ssid}|${pass}|${ip}|${gw}|255.255.255.0|8.8.8.8\n`;
+    comunicarSerial(comando, 16000);
+  }
+
+  function consultarIpUsb() {
+    comunicarSerial('GET_IP\n', 5000);
+  }
+</script>
+</body>
+</html>
