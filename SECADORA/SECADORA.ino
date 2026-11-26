@@ -50,6 +50,7 @@ String statusWifiMsg = "Sem rede";
 bool oledOk = false;
 bool bmeOk = false;
 int dsCount = 0;
+volatile int ultimoMotivo = 0;
 unsigned long ultimaBuscaDs = 0;
 bool dsOk[2] = {false, false};
 unsigned long ultimoT1Ok = 0, ultimoT2Ok = 0;
@@ -161,6 +162,9 @@ void conectarWifiSalvo() {
     WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
   }
 
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);   // placas ESP32-C3 mini costumam falhar em potência máxima
+  ultimoMotivo = 0;
+  Serial.printf("Conectando em '%s' (%d caracteres de senha, IP %s)\n", ssid.c_str(), (int)pass.length(), ipStr.length() ? ipStr.c_str() : "automatico");
   WiFi.begin(ssid.c_str(), pass.c_str());
   statusWifiMsg = "Conectando...";
   Serial.println("Tentando conectar WiFi...");
@@ -180,6 +184,7 @@ void conectarWifiSalvo() {
     Serial.println("WIFI_OK_IP:" + statusWifiMsg);
   } else {
     statusWifiMsg = "Falha Wi-Fi";
+    Serial.println("WIFI_MOTIVO:" + String(ultimoMotivo) + " status:" + String((int)WiFi.status()));
     Serial.println("WIFI_FALHA");
   }
 }
@@ -408,7 +413,7 @@ void setup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(2, 10, "Filament Care");
-  u8g2.drawStr(2, 21, "C3 v1.0.4");
+  u8g2.drawStr(2, 21, "C3 v1.0.5");
   u8g2.drawStr(2, 34, rn);
   u8g2.sendBuffer();
   delay(2500);
@@ -421,6 +426,9 @@ void setup() {
   Serial.printf("DS18B20 encontrados: %d\n", dsCount);
   ultimoT1Ok = ultimoT2Ok = millis();
 
+  WiFi.onEvent([](WiFiEvent_t ev, WiFiEventInfo_t info) {
+    if (ev == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) ultimoMotivo = info.wifi_sta_disconnected.reason;
+  });
   conectarWifiSalvo();
   Serial.println("STEP 1: wifi ok");
   atualizarOLED();
