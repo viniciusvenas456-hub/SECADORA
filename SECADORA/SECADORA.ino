@@ -5,8 +5,6 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <Adafruit_BME280.h>
-#include <OneWireNg_CurrentPlatform.h>
-#include <OneWireNg_BitBangGpio.h>
 
 #define ONE_WIRE_BUS 3
 #define PIN_HEATER   2
@@ -59,206 +57,57 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Filament Care C3</title>
 <style>
-:root{--bg:#090e17;--p:#111a2b;--p2:#18243a;--t:#f1f5f9;--m:#94a3b8;--a:#10b981;--c:#38bdf8;--w:#f59e0b;--d:#ef4444;--line:#22314a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,-apple-system,sans-serif;padding:16px}
-.wrap{max-width:960px;margin:auto}
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding:0 4px}
-.brand{display:flex;align-items:center;gap:10px}.brand h2{margin:0;font-size:20px;letter-spacing:-.3px}
-.badge{display:inline-flex;align-items:center;gap:6px;background:var(--p);border:1px solid var(--line);padding:6px 12px;border-radius:99px;font-size:12px;color:var(--m)}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--d);box-shadow:0 0 8px var(--d);transition:.3s}
-.dot.on{background:var(--a);box-shadow:0 0 8px var(--a)}
-.card{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
-.status-hdr{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
-.lbl{color:var(--m);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
-.fase-txt{margin:4px 0 0;font-size:22px;font-weight:800}
-.sp-txt{margin:4px 0 0;font-size:22px;font-weight:800;color:var(--w)}
-.bar{height:10px;background:#070b12;border-radius:99px;overflow:hidden;margin:14px 0 8px;border:1px solid #1a2639}
-.fill{height:100%;background:linear-gradient(90deg,var(--a),var(--c));width:0%;transition:width .5s ease}
-.time-row{display:flex;justify-content:space-between;font-size:12px;color:var(--m)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:14px}
-.kpi{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:16px;position:relative;overflow:hidden}
-.kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kc,var(--a))}
-.val{font-size:30px;font-weight:800;margin:6px 0 2px;letter-spacing:-.5px}
-.sub{font-size:12px;color:var(--m)}
-.chart-hdr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.legend{display:flex;gap:14px;font-size:12px;color:var(--m)}
-.leg-item{display:flex;align-items:center;gap:5px}
-.leg-sw{width:12px;height:3px;border-radius:2px}
-canvas{width:100%;height:210px;display:block;background:#080d16;border-radius:10px;border:1px solid #1b273b}
-.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:12px}
-button{padding:14px 12px;border-radius:12px;border:1px solid var(--line);background:var(--p2);color:var(--t);font-weight:700;cursor:pointer;font-size:15px;transition:.2s;text-align:center}
-button:hover{border-color:var(--a);transform:translateY(-1px)}
-button.active{border-color:var(--a);background:rgba(16,185,129,.14);box-shadow:0 0 0 1px var(--a)}
-button .bsub{display:block;font-size:12px;font-weight:500;color:var(--m);margin-top:3px}
-button.stop{background:#2d1216;border-color:#7f1d1d;color:#fca5a5}
-button.stop:hover{border-color:var(--d);background:#3f161c}
-.alert{display:none;background:#3b1216;border:1px solid var(--d);color:#fecaca;padding:12px 16px;border-radius:12px;margin-bottom:14px;font-size:13px;font-weight:600}
+:root{--bg:#0b1220;--p:#132034;--p2:#1b2b43;--t:#edf4fc;--m:#a7b7cc;--a:#59d6a4;--w:#f59e0b;--d:#ef4444;--line:#2b3d55}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font-family:system-ui,sans-serif;padding:20px}
+.wrap{max-width:900px;margin:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:16px 0}
+.card{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:18px}
+.val{font-size:32px;font-weight:800;margin:6px 0;color:var(--a)}.muted{color:var(--m);font-size:13px}
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+button{padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--p2);color:var(--t);font-weight:700;cursor:pointer;font-size:15px}
+button:hover{border-color:var(--a)}button.stop{background:#3b161c;border-color:var(--d);color:#fca5a5}
+.bar{height:10px;background:#0b1525;border-radius:99px;overflow:hidden;margin-top:10px}.fill{height:100%;background:var(--a);width:0%;transition:.4s}
 </style></head><body><div class="wrap">
-<div class="top">
-  <div class="brand"><h2>Filament Care C3</h2></div>
-  <div class="badge"><span class="dot" id="dot"></span><span id="conn">Conectando...</span></div>
-</div>
-
-<div class="alert" id="alerta"></div>
-
+<h2>Filament Care C3</h2>
 <div class="card">
-  <div class="status-hdr">
-    <div><div class="lbl">Status do Ciclo</div><div class="fase-txt" id="fase">Carregando...</div></div>
-    <div style="text-align:right"><div class="lbl">Alvo da Rampa</div><div class="sp-txt" id="sp">-- °C</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <div><span class="muted">STATUS DO CICLO</span><h3 style="margin:4px 0" id="fase">Carregando...</h3></div>
+    <div style="text-align:right"><span class="muted">ALVO ATUAL</span><h3 style="margin:4px 0;color:var(--w)" id="sp">-- °C</h3></div>
   </div>
   <div class="bar"><div class="fill" id="prog"></div></div>
-  <div class="time-row">
-    <span id="tempo">Decorrido: 0 min</span>
-    <span id="restante">Restante: -- min</span>
-  </div>
+  <div class="muted" style="margin-top:8px" id="tempo">Tempo decorrido: 0 min</div>
 </div>
-
 <div class="grid">
-  <div class="kpi" style="--kc:#10b981"><div class="lbl">Câmara (T1)</div><div class="val" style="color:#10b981" id="t1">-- °C</div><div class="sub" id="amb">Ambiente: -- °C</div></div>
-  <div class="kpi" style="--kc:#f97316"><div class="lbl">Aquecedor PTC (T2)</div><div class="val" style="color:#f97316" id="t2">-- °C</div><div class="sub">Limite seg.: 105 °C</div></div>
-  <div class="kpi" style="--kc:#38bdf8"><div class="lbl">Umidade Relativa</div><div class="val" style="color:#38bdf8" id="hum">-- %</div><div class="sub">Sensor BME280</div></div>
-  <div class="kpi" style="--kc:#a855f7"><div class="lbl">Potência / Ventoinha</div><div class="val" style="color:#c084fc" id="pwr">--% / --%</div><div class="sub">PWM Heater / Fan</div></div>
+  <div class="card"><div class="muted">CÂMARA</div><div class="val" id="t1">-- °C</div></div>
+  <div class="card"><div class="muted">AQUECEDOR</div><div class="val" id="t2">-- °C</div></div>
+  <div class="card"><div class="muted">UMIDADE</div><div class="val" id="hum">-- %</div></div>
+  <div class="card"><div class="muted">POTÊNCIA / FAN</div><div class="val" id="pwr">--% / --%</div></div>
 </div>
-
 <div class="card">
-  <div class="chart-hdr">
-    <div class="lbl">Curva Térmica em Tempo Real</div>
-    <div class="legend">
-      <div class="leg-item"><span class="leg-sw" style="background:#10b981"></span>Câmara</div>
-      <div class="leg-item"><span class="leg-sw" style="background:#f97316"></span>Aquecedor</div>
-      <div class="leg-item"><span class="leg-sw" style="background:#f59e0b"></span>Alvo</div>
-    </div>
-  </div>
-  <canvas id="grafico"></canvas>
-</div>
-
-<div class="card">
-  <div class="lbl">Perfis de Secagem</div>
+  <h3 style="margin-top:0">Iniciar Rampa</h3>
   <div class="btns">
-    <button id="btn1" onclick="setP(1)">PLA<span class="bsub">50 °C · 4h30</span></button>
-    <button id="btn2" onclick="setP(2)">PETG<span class="bsub">65 °C · 6h40</span></button>
-    <button id="btn3" onclick="setP(3)">ASA<span class="bsub">80 °C · 6h50</span></button>
-    <button id="btn4" onclick="setP(4)">ABS<span class="bsub">80 °C · 6h50</span></button>
-    <button class="stop" onclick="setP(0)">PARAR<span class="bsub">Resfriar / Desligar</span></button>
+    <button onclick="setP(1)">PLA<br><span class="muted">50°C · 4h30</span></button>
+    <button onclick="setP(2)">PETG<br><span class="muted">65°C · 6h40</span></button>
+    <button onclick="setP(3)">ASA<br><span class="muted">80°C · 6h50</span></button>
+    <button onclick="setP(4)">ABS<br><span class="muted">80°C · 6h50</span></button>
+    <button class="stop" onclick="setP(0)">PARAR</button>
   </div>
-</div>
-</div>
-
+</div></div>
 <script>
-const MAX_PTS = 120;
-const hist = { t1: [], t2: [], sp: [] };
-const cvs = document.getElementById('grafico');
-const ctx = cvs.getContext('2d');
-
-function desenharGrafico() {
-  const dpr = window.devicePixelRatio || 1;
-  const rect = cvs.getBoundingClientRect();
-  cvs.width = rect.width * dpr;
-  cvs.height = rect.height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width, h = rect.height;
-  const padL = 38, padR = 12, padT = 14, padB = 20;
-  const gw = w - padL - padR, gh = h - padT - padB;
-
-  ctx.clearRect(0, 0, w, h);
-
-  const todos = [...hist.t1, ...hist.t2, ...hist.sp].filter(v => v > 0);
-  let minV = todos.length ? Math.floor(Math.min(...todos, 20) / 10) * 10 : 10;
-  let maxV = todos.length ? Math.ceil(Math.max(...todos, 60) / 10) * 10 : 100;
-  if (maxV - minV < 20) maxV = minV + 20;
-
-  ctx.strokeStyle = '#182438';
-  ctx.lineWidth = 1;
-  ctx.fillStyle = '#64748b';
-  ctx.font = '11px system-ui';
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'middle';
-
-  const steps = 4;
-  for (let i = 0; i <= steps; i++) {
-    const val = minV + ((maxV - minV) / steps) * i;
-    const y = padT + gh - (i / steps) * gh;
-    ctx.beginPath();
-    ctx.moveTo(padL, y);
-    ctx.lineTo(w - padR, y);
-    ctx.stroke();
-    ctx.fillText(Math.round(val) + '°', padL - 6, y);
-  }
-
-  function plotar(arr, cor, tracejado) {
-    if (arr.length < 2) return;
-    ctx.save();
-    ctx.strokeStyle = cor;
-    ctx.lineWidth = tracejado ? 1.8 : 2.4;
-    if (tracejado) ctx.setLineDash([5, 4]);
-    ctx.beginPath();
-    arr.forEach((v, idx) => {
-      const x = padL + (idx / (MAX_PTS - 1)) * gw;
-      const y = padT + gh - ((v - minV) / (maxV - minV)) * gh;
-      if (idx === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  plotar(hist.sp, '#f59e0b', true);
-  plotar(hist.t2, '#f97316', false);
-  plotar(hist.t1, '#10b981', false);
-}
-
-function setP(id) {
-  fetch('/set?p=' + id).then(() => atualizar());
-}
-
-function atualizar() {
-  fetch('/status').then(r => r.json()).then(d => {
-    document.getElementById('dot').classList.add('on');
-    document.getElementById('conn').innerText = 'Online';
-
-    const al = document.getElementById('alerta');
-    if (d.fase === 'FALHA SENSOR') {
-      al.style.display = 'block';
-      al.innerText = 'ALERTA DE SEGURANÇA: Falha na leitura dos sensores DS18B20. Aquecedor desligado automaticamente.';
-    } else {
-      al.style.display = 'none';
-    }
-
-    document.getElementById('t1').innerText = d.t1.toFixed(1) + ' °C';
-    document.getElementById('t2').innerText = d.t2.toFixed(1) + ' °C';
-    document.getElementById('amb').innerText = 'Ambiente: ' + d.tAmb.toFixed(1) + ' °C';
-    document.getElementById('hum').innerText = d.hum.toFixed(1) + ' %';
-    document.getElementById('fase').innerText = d.perfil + ' — ' + d.fase;
-    document.getElementById('sp').innerText = d.sp.toFixed(1) + ' °C';
-    document.getElementById('pwr').innerText = Math.round(d.heater / 2.55) + '% / ' + Math.round(d.fan / 2.55) + '%';
-    document.getElementById('tempo').innerText = 'Decorrido: ' + d.minDecorridos + ' min / Total: ' + d.minTotal + ' min';
-
-    const rest = Math.max(0, d.minTotal - d.minDecorridos);
-    document.getElementById('restante').innerText = d.minTotal > 0 ? ('Restante: ' + rest + ' min') : 'Aguardando início';
-
-    const pct = d.minTotal > 0 ? Math.min(100, (d.minDecorridos / d.minTotal) * 100) : 0;
-    document.getElementById('prog').style.width = pct + '%';
-
-    for (let i = 1; i <= 4; i++) {
-      const b = document.getElementById('btn' + i);
-      if (b) b.classList.toggle('active', d.perfilId === i);
-    }
-
-    hist.t1.push(d.t1);
-    hist.t2.push(d.t2);
-    hist.sp.push(d.sp);
-    if (hist.t1.length > MAX_PTS) { hist.t1.shift(); hist.t2.shift(); hist.sp.shift(); }
-    desenharGrafico();
-  }).catch(() => {
-    document.getElementById('dot').classList.remove('on');
-    document.getElementById('conn').innerText = 'Sem resposta';
+function setP(id){fetch('/set?p='+id).then(()=>atualizar())}
+function atualizar(){
+  fetch('/status').then(r=>r.json()).then(d=>{
+    document.getElementById('t1').innerText=d.t1.toFixed(1)+' °C';
+    document.getElementById('t2').innerText=d.t2.toFixed(1)+' °C';
+    document.getElementById('hum').innerText=d.hum.toFixed(1)+' %';
+    document.getElementById('fase').innerText=d.perfil+' — '+d.fase;
+    document.getElementById('sp').innerText=d.sp.toFixed(1)+' °C';
+    document.getElementById('pwr').innerText=Math.round(d.heater/2.55)+'% / '+Math.round(d.fan/2.55)+'%';
+    document.getElementById('tempo').innerText='Decorrido: '+d.minDecorridos+' min / Total: '+d.minTotal+' min';
+    let pct=d.minTotal>0?Math.min(100,(d.minDecorridos/d.minTotal)*100):0;
+    document.getElementById('prog').style.width=pct+'%';
   });
 }
-
-window.addEventListener('resize', desenharGrafico);
-setInterval(atualizar, 2000);
-atualizar();
+setInterval(atualizar,2000);atualizar();
 </script></body></html>
 )rawliteral";
 
@@ -336,59 +185,138 @@ void conectarWifiSalvo() {
   }
 }
 
-// ===== 1-Wire via OneWireNg =====
-OneWireNg_BitBangGpio owBus(ONE_WIRE_BUS, true);
-OneWireNg::Id owRom[2];
+// ===== 1-Wire próprio (sem OneWire/DallasTemperature) =====
+int owPin = ONE_WIRE_BUS;
+uint8_t owRom[2][8];
+uint8_t owSearchRom[8];
+uint8_t owLastDiscrepancy = 0;
+bool owLastDevice = false;
 bool owConvStarted = false;
 unsigned long owConvStart = 0;
+portMUX_TYPE owMux = portMUX_INITIALIZER_UNLOCKED;
 
 void owInitPin() {
-  pinMode(ONE_WIRE_BUS, INPUT_PULLUP);
+  pinMode(owPin, OUTPUT_OPEN_DRAIN | PULLUP);   // dreno aberto + pull-up interno de reforço
+  digitalWrite(owPin, HIGH);
 }
 
 bool owReset() {
-  return (owBus.reset() == OneWireNg::EC_SUCCESS);
+  digitalWrite(owPin, HIGH);
+  uint32_t t0 = micros();
+  while (digitalRead(owPin) == LOW) {
+    if (micros() - t0 > 300) return false;       // linha presa em baixo (curto)
+  }
+  digitalWrite(owPin, LOW);
+  delayMicroseconds(480);
+  digitalWrite(owPin, HIGH);
+  delayMicroseconds(70);
+  bool presente = (digitalRead(owPin) == LOW);   // o sensor puxa a linha para baixo
+  delayMicroseconds(410);
+  return presente;
 }
 
+void owWriteBit(uint8_t b) {
+  portENTER_CRITICAL(&owMux);
+  digitalWrite(owPin, LOW);
+  if (b) { delayMicroseconds(6);  digitalWrite(owPin, HIGH); delayMicroseconds(64); }
+  else   { delayMicroseconds(60); digitalWrite(owPin, HIGH); delayMicroseconds(10); }
+  portEXIT_CRITICAL(&owMux);
+}
+
+uint8_t owReadBit() {
+  portENTER_CRITICAL(&owMux);
+  digitalWrite(owPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(owPin, HIGH);
+  delayMicroseconds(8);
+  uint8_t r = digitalRead(owPin) ? 1 : 0;
+  delayMicroseconds(55);
+  portEXIT_CRITICAL(&owMux);
+  return r;
+}
+
+void owWriteByte(uint8_t v) { for (uint8_t i = 0; i < 8; i++) { owWriteBit(v & 1); v >>= 1; } }
+uint8_t owReadByte() { uint8_t v = 0; for (uint8_t i = 0; i < 8; i++) v |= (owReadBit() << i); return v; }
+
 uint8_t owCrc8(const uint8_t* d, uint8_t len) {
-  return OneWireNg::crc8(d, len);
+  uint8_t crc = 0;
+  while (len--) {
+    uint8_t in = *d++;
+    for (uint8_t i = 8; i; i--) {
+      uint8_t mix = (crc ^ in) & 1;
+      crc >>= 1;
+      if (mix) crc ^= 0x8C;
+      in >>= 1;
+    }
+  }
+  return crc;
+}
+
+// Busca de ROM padrão (Maxim AN187)
+bool owSearchNext(uint8_t* out) {
+  int idBitNumber = 1, lastZero = 0, romByteNumber = 0;
+  uint8_t romByteMask = 1, idBit, cmpIdBit, dir;
+  bool found = false;
+  if (!owLastDevice) {
+    if (!owReset()) { owLastDiscrepancy = 0; owLastDevice = false; return false; }
+    owWriteByte(0xF0);
+    do {
+      idBit = owReadBit();
+      cmpIdBit = owReadBit();
+      if (idBit && cmpIdBit) break;               // nenhum dispositivo respondeu
+      if (idBit != cmpIdBit) {
+        dir = idBit;
+      } else {
+        if (idBitNumber < owLastDiscrepancy) dir = ((owSearchRom[romByteNumber] & romByteMask) > 0);
+        else dir = (idBitNumber == owLastDiscrepancy);
+        if (!dir) lastZero = idBitNumber;
+      }
+      if (dir) owSearchRom[romByteNumber] |= romByteMask;
+      else owSearchRom[romByteNumber] &= ~romByteMask;
+      owWriteBit(dir);
+      idBitNumber++;
+      romByteMask <<= 1;
+      if (romByteMask == 0) { romByteNumber++; romByteMask = 1; }
+    } while (romByteNumber < 8);
+    if (!(idBitNumber < 65)) {
+      owLastDiscrepancy = lastZero;
+      if (owLastDiscrepancy == 0) owLastDevice = true;
+      found = true;
+    }
+  }
+  if (!found || !owSearchRom[0]) {
+    owLastDiscrepancy = 0; owLastDevice = false; found = false;
+  } else {
+    memcpy(out, owSearchRom, 8);
+  }
+  return found;
 }
 
 int owScan() {
   int n = 0;
-  OneWireNg::Id id;
-  owBus.searchReset();
-  while (n < 2 && owBus.search(id) == OneWireNg::EC_MORE) {
-    if (id[0] == 0x28 && OneWireNg::crc8(id, 7) == id[7]) {
-      memcpy(owRom[n], id, sizeof(OneWireNg::Id));
-      n++;
-    }
-  }
-  if (n < 2 && id[0] == 0x28 && OneWireNg::crc8(id, 7) == id[7]) {
-    memcpy(owRom[n], id, sizeof(OneWireNg::Id));
-    n++;
+  owLastDiscrepancy = 0; owLastDevice = false;
+  memset(owSearchRom, 0, 8);
+  uint8_t rom[8];
+  while (n < 2 && owSearchNext(rom)) {
+    if (owCrc8(rom, 7) == rom[7] && rom[0] == 0x28) memcpy(owRom[n++], rom, 8);   // 0x28 = DS18B20
   }
   return n;
 }
 
 void owStartConversion() {
-  if (owBus.reset() != OneWireNg::EC_SUCCESS) return;
-  owBus.writeByte(0xCC); // SKIP ROM
-  owBus.writeByte(0x44); // CONVERT T
+  if (!owReset()) return;
+  owWriteByte(0xCC);   // SKIP ROM
+  owWriteByte(0x44);   // CONVERT T
 }
 
-bool owReadTemp(const OneWireNg::Id& rom, float& t) {
-  if (owBus.reset() != OneWireNg::EC_SUCCESS) return false;
-  owBus.writeByte(0x55); // MATCH ROM
-  owBus.writeBytes(rom, sizeof(OneWireNg::Id));
-  owBus.writeByte(0xBE); // READ SCRATCHPAD
-
+bool owReadTemp(const uint8_t* rom, float& t) {
+  if (!owReset()) return false;
+  owWriteByte(0x55);   // MATCH ROM
+  for (int i = 0; i < 8; i++) owWriteByte(rom[i]);
+  owWriteByte(0xBE);   // READ SCRATCHPAD
   uint8_t sp[9];
-  for (int i = 0; i < 9; i++) {
-    sp[i] = owBus.readByte();
-  }
-  if (OneWireNg::crc8(sp, 8) != sp[8]) return false;
-
+  for (int i = 0; i < 9; i++) sp[i] = owReadByte();
+  if (owCrc8(sp, 8) != sp[8]) return false;
   int16_t raw = (int16_t)((sp[1] << 8) | sp[0]);
   t = raw / 16.0f;
   return true;
@@ -534,4 +462,217 @@ void atualizarLed() {
   digitalWrite(PIN_LED, aceso ? LOW : HIGH);   // ativo em LOW
 }
 
-// Reconecta sozinho se a rede cair e repete o IP pela USB (o navegador pode abrir a porta 
+// Reconecta sozinho se a rede cair e repete o IP pela USB (o navegador pode abrir a porta depois do boot)
+void manutencaoWifi() {
+  unsigned long m = millis();
+  if (WiFi.status() == WL_CONNECTED) {
+    if (m - ultimoIpSerial > 2000) {
+      ultimoIpSerial = m;
+      Serial.println("WIFI_OK_IP:" + WiFi.localIP().toString());
+    }
+  } else if (statusWifiMsg != "Sem SSID" && m - ultimaTentativaWifi > 30000UL) {
+    ultimaTentativaWifi = m;
+    WiFi.reconnect();
+  }
+}
+
+void atualizarOLED() {
+  if (!oledOk) return;
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);
+
+  // Linha 1 - IP ou status
+  if (WiFi.status() == WL_CONNECTED) {
+    u8g2.drawStr(0, 8, WiFi.localIP().toString().c_str());
+  } else {
+    u8g2.drawStr(0, 8, statusWifiMsg.c_str());
+  }
+
+  // Linha 2
+  char buf[32];
+  snprintf(buf, sizeof(buf), "Cam:%.1f Alvo:%.0f", t1, setpointAtual);
+  u8g2.drawStr(0, 18, buf);
+
+  // Linha 3
+  snprintf(buf, sizeof(buf), "PTC:%.1f U:%.0f%%", t2, umid);
+  u8g2.drawStr(0, 28, buf);
+
+  // Linha 4
+  String linha = perfis[perfilAtual].nome + " " + faseAtual;
+  u8g2.drawStr(0, 38, linha.c_str());
+
+  u8g2.sendBuffer();
+}
+
+void setup() {
+  // Saídas seguras primeiro
+  pinMode(PIN_HEATER, OUTPUT);
+  pinMode(PIN_FAN, OUTPUT);
+  pinMode(PIN_LED, OUTPUT);
+  digitalWrite(PIN_HEATER, LOW);
+  digitalWrite(PIN_FAN, LOW);
+  digitalWrite(PIN_LED, LOW);    // LED aceso no boot: prova que o firmware está rodando
+
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("=== Filament Care C3 ===");
+
+  // OLED
+  Wire.begin(5, 6);
+  u8g2.begin();
+  u8g2.setContrast(255);
+  u8g2.setBusClock(400000);
+  oledOk = true;
+
+  // Motivo do último reinício (ajuda a achar loop de boot)
+  esp_reset_reason_t rr = esp_reset_reason();
+  const char* rn = "OUTRO";
+  switch (rr) {
+    case ESP_RST_POWERON:  rn = "POWERON"; break;
+    case ESP_RST_SW:       rn = "SOFTWARE"; break;
+    case ESP_RST_PANIC:    rn = "PANIC/CRASH"; break;
+    case ESP_RST_INT_WDT:  rn = "INT_WDT"; break;
+    case ESP_RST_TASK_WDT: rn = "TASK_WDT"; break;
+    case ESP_RST_WDT:      rn = "WDT"; break;
+    case ESP_RST_BROWNOUT: rn = "BROWNOUT"; break;
+    case ESP_RST_USB:      rn = "USB"; break;
+    default: break;
+  }
+  Serial.printf("RESET: %s (%d)\n", rn, (int)rr);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);
+  u8g2.drawStr(2, 10, "Filament Care");
+  u8g2.drawStr(2, 21, "C3 v1.1.1");
+  u8g2.drawStr(2, 34, rn);
+  u8g2.sendBuffer();
+  delay(2500);
+
+  Serial.print("I2C encontrados:");
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) Serial.printf(" 0x%02X", a);
+  }
+  Serial.println("  (OLED=0x3C, BME280=0x76 ou 0x77)");
+  for (int a = 0x76; a <= 0x77; a++) {
+    Wire.beginTransmission(a);
+    Wire.write(0xD0);   // registrador do ID do chip
+    if (Wire.endTransmission() == 0 && Wire.requestFrom(a, 1) == 1) {
+      int id = Wire.read();
+      Serial.printf("Chip em 0x%02X: ID 0x%02X -> %s\n", a, id,
+                    id == 0x60 ? "BME280 (mede umidade)" :
+                    (id >= 0x56 && id <= 0x58) ? "BMP280 (NAO mede umidade)" : "desconhecido");
+    }
+  }
+  bmeOk = bme.begin(0x76) || bme.begin(0x77);
+  Serial.println(bmeOk ? "BME280 OK" : "BME280 NAO ENCONTRADO");
+  // Nível da linha de dado em repouso, sem pull-up interno (equivale a medir DAT com o multímetro)
+  pinMode(ONE_WIRE_BUS, INPUT);
+  delay(20);
+  Serial.printf("Linha de dado (GPIO %d) em repouso: %s\n", ONE_WIRE_BUS,
+                digitalRead(ONE_WIRE_BUS) ? "ALTA (pull-up ok)" : "BAIXA (curto, sem pull-up ou sem alimentacao)");
+  // Procura presença de dispositivo 1-Wire em vários pinos (acha pino impresso errado na placa)
+  {
+    Serial.print("1-Wire presente em GPIO:");
+    const int cand[] = {0, 1, 3, 4, 10, 20, 21};   // fora: 2 (aquecedor) e 7 (ventoinha)
+    bool achou = false;
+    for (int g : cand) {
+      owPin = g; owInitPin();
+      if (owReset()) { Serial.printf(" %d", g); achou = true; }
+    }
+    owPin = ONE_WIRE_BUS; owInitPin();
+    Serial.println(achou ? "  (esperado: 3)" : " nenhum (sem sensor/pull-up/alimentacao)");
+  }
+  dsCount = owScan();
+  Serial.printf("DS18B20 encontrados: %d\n", dsCount);
+  for (int i = 0; i < dsCount; i++) {
+    Serial.printf("  #%d ROM:", i + 1);
+    for (int k = 0; k < 8; k++) Serial.printf(" %02X", owRom[i][k]);
+    Serial.println();
+  }
+  ultimoT1Ok = ultimoT2Ok = millis();
+
+  WiFi.onEvent([](WiFiEvent_t ev, WiFiEventInfo_t info) {
+    if (ev == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) ultimoMotivo = info.wifi_sta_disconnected.reason;
+  });
+  conectarWifiSalvo();
+  Serial.println("STEP 1: wifi ok");
+  atualizarOLED();
+  Serial.println("STEP 2: oled ok");
+
+  server.on("/", []() { server.send_P(200, "text/html", INDEX_HTML); });
+  
+  server.on("/status", []() {
+    PerfilSecagem p = perfis[perfilAtual];
+    unsigned long dec = (perfilAtual == 0) ? 0 : (millis() - inicioCicloMs) / 60000UL;
+    int tot = p.tempoRampaMin + p.tempoPatamarMin + p.tempoCoolMin;
+    String json = "{";
+    json += "\"t1\":" + String(t1, 1) + ",";
+    json += "\"t2\":" + String(t2, 1) + ",";
+    json += "\"hum\":" + String(umid, 1) + ",";
+    json += "\"perfil\":\"" + p.nome + "\",";
+    json += "\"fase\":\"" + faseAtual + "\",";
+    json += "\"sp\":" + String(setpointAtual, 1) + ",";
+    json += "\"heater\":" + String(pwmHeater) + ",";
+    json += "\"fan\":" + String(pwmFan) + ",";
+    json += "\"minDecorridos\":" + String(dec) + ",";
+    json += "\"minTotal\":" + String(tot);
+    json += "}";
+    server.send(200, "application/json", json);
+  });
+
+  server.on("/set", []() {
+    if (server.hasArg("p")) {
+      int p = server.arg("p").toInt();
+      if (p >= 0 && p <= 4) {
+        perfilAtual = p;
+        inicioCicloMs = millis();
+        tempInicialCiclo = (t1 > 10.0) ? t1 : 25.0;
+      }
+    }
+    server.send(200, "text/plain", "OK");
+  });
+
+  Serial.println("STEP 3: rotas ok");
+  server.begin();
+  Serial.println("STEP 4: servidor ok");
+}
+
+unsigned long ultimoCiclo = 0;
+void loop() {
+  server.handleClient();
+  verificarComandosSerial();
+  atualizarLed();
+  manutencaoWifi();
+
+  if (millis() - ultimoCiclo >= 1500) {
+    ultimoCiclo = millis();
+    static unsigned long ultimaBuscaBme = 0, ultimoDiag = 0;
+    if (!bmeOk && millis() - ultimaBuscaBme > 5000UL) {
+      ultimaBuscaBme = millis();
+      bmeOk = bme.begin(0x76) || bme.begin(0x77);
+    }
+    if (millis() - ultimoDiag > 5000UL) {
+      ultimoDiag = millis();
+      Serial.printf("DIAG ds=%d bme=%d t1=%.1f t2=%.1f umid=%.0f\n", dsCount, (int)bmeOk, t1, t2, umid);
+      if (dsCount == 0) {
+        // diagnóstico ao vivo do barramento: mexa nos fios e veja o resultado mudar
+        owPin = ONE_WIRE_BUS;
+        pinMode(owPin, INPUT);                 // sem pull-up interno: mede o pull-up externo
+        delay(2);
+        int nivel = digitalRead(owPin);
+        owInitPin();
+        bool pres = owReset();
+        Serial.printf("DIAG-1W GPIO%d linha=%s presenca=%d\n", owPin, nivel ? "ALTA" : "BAIXA", (int)pres);
+      }
+    }
+    static bool primeiro = true;
+    if (primeiro) Serial.println("LOOP 1: sensores");
+    lerSensores();
+    if (primeiro) Serial.println("LOOP 2: controle");
+    processarRampaEControle();
+    if (primeiro) Serial.println("LOOP 3: oled");
+    atualizarOLED();
+    if (primeiro) { Serial.println("LOOP 4: ok"); primeiro = false; }
+  }
+}
